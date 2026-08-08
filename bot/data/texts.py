@@ -106,3 +106,19 @@ ADMIN_NEW_ORDER = (
     "Manzil: {address}\n"
     "Telefon: {phone}"
 )
+
+
+def normalize(text: str) -> str:
+    """Inline so'rov matnini taqqoslash uchun bir ko'rinishga keltiradi.
+
+    switch_inline_query_current_chat matnni foydalanuvchi kiritish maydoniga
+    qo'yadi, turli Telegram klientlari esa oxiriga bo'sh joy qo'shishi yoki
+    registrni saqlamasligi mumkin. Aniq taqqoslashda bunday so'rov filtrdan
+    o'tmaydi, hech bir handler ishlamaydi va bot "javob bermay" qolgandek
+    ko'rinadi. Apostrofning turli shakllari ham birxillashtiriladi.
+    """
+    if not text:
+        return ""
+    for ch in ("‘", "’", "ʼ", "´", "`"):
+        text = text.replace(ch, "'")
+    return " ".join(text.split()).casefold()

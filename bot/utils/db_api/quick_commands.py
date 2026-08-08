@@ -4,6 +4,7 @@ from bot.keyboards.inline.gen_keyboard import KeyboardGen
 from bot.utils.db_api.db_gino import db
 from bot.utils.db_api.schemas.db_tables import SubcategoryGino, CategoryGino, ProductGino, TgUserGino, OrdersGino
 from bot.data import texts
+from bot.data.texts import normalize
 
 
 async def get_parent_child():  # get child model with children attribute
@@ -72,8 +73,19 @@ async def show_products_inline(subcategory_title: str, state: FSMContext, offset
     start = offset
     end = offset + 25
     query_answer = []
+    # Filtr normalizatsiya bilan o'tkazadi, shuning uchun bu yerda ham aynan
+    # shunday solishtirish kerak: aks holda oxiridagi bo'sh joy tufayli filtr
+    # o'tib, natija esa bo'sh qaytardi.
+    wanted = normalize(subcategory_title)
+    subcategory = next(
+        (s for s in await show_all_subcategory() if normalize(s.tg_name) == wanted),
+        None,
+    )
+    if subcategory is None:
+        return query_answer
     async with db.transaction():
-        query = ProductGino.load(parent=SubcategoryGino).where(SubcategoryGino.tg_name == subcategory_title)
+        query = ProductGino.load(parent=SubcategoryGino).where(
+            SubcategoryGino.id == subcategory.id)
         result = await query.gino.all()
     for product in result[start:end]:
         async with state.proxy() as state_data:
