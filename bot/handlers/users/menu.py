@@ -16,18 +16,20 @@ from bot.utils.message_edit import edit_text
 from bot.data import texts
 
 
-@dp.message_handler(Command("menu"))
+@dp.message_handler(Command("menu"), state="*")
 async def show_menu(message: types.Message):
     await message.reply(text=texts.MAIN_MENU, reply_markup=menu)
 
 
-@dp.message_handler(text=texts.BTN_PRODUCTS)
+@dp.message_handler(text=texts.BTN_PRODUCTS, state="*")
 async def delegate_to_categories(message: types.Message, state: FSMContext):
+    await state.reset_state(with_data=False)
     await show_category(message, state=state)
 
 
-@dp.message_handler(text=texts.BTN_CART)
+@dp.message_handler(text=texts.BTN_CART, state="*")
 async def show_cart_menu(message: types.Message, state: FSMContext):
+    await state.reset_state(with_data=False)
     async with state.proxy() as state_data:
         if cart.is_empty(state_data):
             await message.answer(texts.CART_EMPTY)

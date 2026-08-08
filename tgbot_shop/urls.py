@@ -9,6 +9,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 ]
 
-# Product photos are user-uploaded, so WhiteNoise (static only) won't serve
-# them. In DEBUG Django does it; in production put them behind the web server.
+# DEBUG rejimida media'ni Django beradi. Prodda static() bo'sh ro'yxat
+# qaytaradi, shuning uchun u yerda media WhiteNoise orqali uzatiladi —
+# tgbot_shop/wsgi.py ga qarang.
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

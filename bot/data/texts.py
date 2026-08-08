@@ -174,12 +174,13 @@ def out_of_stock(stock: int) -> str:
 
 SEARCH_ASK = "Mahsulot nomini yozing (masalan: salyami, sosiska):"
 SEARCH_TOO_SHORT = "Kamida 2 ta harf yozing."
+SEARCH_CANCELLED = "Qidiruv bekor qilindi. Menyudan tanlang."
 NOTHING_HERE = "Bu yerda hozircha mahsulot yo'q."
 
 
 def search_empty(query: str) -> str:
     return (f"\u00ab{query}\u00bb bo'yicha hech narsa topilmadi.\n"
-            "Boshqacha yozib ko'ring yoki katalogdan tanlang.")
+            "Boshqa nom yozing yoki menyudan \u00ab\U0001f6cd Mahsulotlar\u00bb ni tanlang.")
 
 
 def search_found(query: str, count: int) -> str:

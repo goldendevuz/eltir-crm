@@ -14,7 +14,8 @@ import logging
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InputMediaPhoto
-from aiogram.utils.exceptions import MessageNotModified
+from aiogram.utils.exceptions import (BadRequest, MessageNotModified,
+                                      TelegramAPIError)
 
 from bot.data import texts
 from bot.keyboards.inline.callback_datas import (browse_callback,
@@ -72,6 +73,9 @@ async def render_product(target, state: FSMContext, products: list, index: int,
             return
         except MessageNotModified:
             return
+        except (BadRequest, TelegramAPIError) as err:
+            # Rasm yaroqsiz — eski xabarni o'chirib, matn bilan yuboramiz.
+            logging.warning("rasm almashtirilmadi (%s): %s", product.slug, err)
 
     if message is not None:
         try:
@@ -80,13 +84,28 @@ async def render_product(target, state: FSMContext, products: list, index: int,
             # Eski xabarni o'chirib bo'lmasa ham yangisini yuborish kerak.
             pass
 
+    await send_card(chat_id, product, caption, markup)
+
+
+async def send_card(chat_id, product, caption, markup):
+    """Kartochkani yuboradi; rasm ishlamasa matn bilan davom etadi.
+
+    file_id BOTGA bog'liq: token almashtirilsa yoki sync_photos ishlatilmasa
+    Telegram uni rad etadi. Ilgari bunday holatda handler xato bilan
+    tugardi va foydalanuvchi umuman javob ko'rmasdi — mahsulotlar "chiqmay
+    qolgandek" bo'lardi.
+    """
     if product.image_file_id:
-        await bot.send_photo(chat_id=chat_id, photo=product.image_file_id,
-                             caption=caption, parse_mode="HTML",
-                             reply_markup=markup)
-    else:
-        await bot.send_message(chat_id=chat_id, text=caption,
-                               parse_mode="HTML", reply_markup=markup)
+        try:
+            await bot.send_photo(chat_id=chat_id, photo=product.image_file_id,
+                                 caption=caption, parse_mode="HTML",
+                                 reply_markup=markup)
+            return
+        except (BadRequest, TelegramAPIError) as err:
+            logging.warning("rasm yuborilmadi (%s): %s — matn bilan davom etamiz",
+                            product.slug, err)
+    await bot.send_message(chat_id=chat_id, text=caption, parse_mode="HTML",
+                           reply_markup=markup)
 
 
 @dp.callback_query_handler(browse_callback.filter())
