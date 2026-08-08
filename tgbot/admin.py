@@ -278,6 +278,12 @@ class OrdersAdmin(ModelAdmin):
             obj.delivered_at = timezone.now()
         super().save_model(request, obj, form, change)
 
+    def save_related(self, request, form, formsets, change):
+        # Qatorlar shu yerda saqlanadi, shuning uchun jamini save_model emas,
+        # aynan shu yerdan qayta hisoblaymiz.
+        super().save_related(request, form, formsets, change)
+        form.instance.recalc_total()
+
     @admin.action(description="Yetkazildi deb belgilash")
     def mark_delivered(self, request, queryset):
         n = queryset.update(status=models.Orders.DELIVERED,
@@ -300,6 +306,23 @@ class OrderProductAdmin(RoleScopedAdmin):
     list_display_links = ("order", "product")
     search_fields = ("order__order_number", "product__title")
     autocomplete_fields = ("order", "product")
+
+    # Qator shu ekrandan alohida o'zgartirilsa ham buyurtma jami summasi
+    # eskirib qolmasligi kerak.
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        obj.order.recalc_total()
+
+    def delete_model(self, request, obj):
+        order = obj.order
+        super().delete_model(request, obj)
+        order.recalc_total()
+
+    def delete_queryset(self, request, queryset):
+        orders = {line.order for line in queryset.select_related("order")}
+        super().delete_queryset(request, queryset)
+        for order in orders:
+            order.recalc_total()
 
 
 # -------------------------------------------------------------------- mijoz

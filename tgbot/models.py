@@ -159,6 +159,24 @@ class Orders(TimeModel):
     def __str__(self):
         return self.order_number
 
+    def recalc_total(self):
+        """Jami summani qatorlardan qayta hisoblaydi.
+
+        Operator buyurtmani admin panelda qatorlab yig'sa, total_price o'zi
+        yangilanmaydi va kassir noto'g'ri summa oladi. Qator bo'lmasa qo'lda
+        kiritilgan summa saqlanadi — nolga tushirib yubormaslik uchun.
+        """
+        lines = self.order_product.all()
+        if not lines:
+            return self.total_price
+        total = sum(line.quantity * line.single_price for line in lines)
+        if total != self.total_price:
+            # save() emas: save_related ichida chaqiriladi, qayta signal
+            # va rekursiyani chaqirmasligi kerak.
+            Orders.objects.filter(pk=self.pk).update(total_price=total)
+            self.total_price = total
+        return total
+
     class Meta:
         verbose_name = "Buyurtma"
         verbose_name_plural = "Buyurtmalar"
