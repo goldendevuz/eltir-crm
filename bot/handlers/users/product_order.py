@@ -15,6 +15,7 @@ from bot.utils.db_api.quick_commands import get_user
 from bot.utils.db_api.schemas.db_tables import OrdersGino, OrderProductGino, UserAddresses
 from bot.utils.generate_order_number import generate_order_number
 from bot.utils.notify_admins import order_notify
+from bot.data import texts
 
 
 async def create_order_db(state: FSMContext):
@@ -42,7 +43,7 @@ async def create_order(call: types.CallbackQuery, state: FSMContext):
     user = await get_user(user_id=int(call.from_user.id))
     await state.update_data(user_db_id=user.id)
     markup = await generate_addresses_keyboard(state)
-    await bot.send_message(call.from_user.id, text="Куда доставлять?",
+    await bot.send_message(call.from_user.id, text=texts.ASK_ADDRESS_CHOICE,
                            reply_markup=markup)
     await OrderStates.Address.set()
     await call.answer()
@@ -64,33 +65,32 @@ async def accept_address(message: Union[types.Message, types.CallbackQuery], sta
         await state.update_data(user_address=address)
         await state.reset_state(with_data=False)
         await message.answer()
-    await bot.send_message(chat_id=chat_id, text="Чем Доставлять?", reply_markup=gen_shipping_keyboard())
+    await bot.send_message(chat_id=chat_id, text=texts.ASK_SHIPPING, reply_markup=gen_shipping_keyboard())
     await OrderStates.Shipping.set()
 
 
 @dp.message_handler(state=OrderStates.Shipping)
 async def delegate_to_shipping_method(message: types.Message, state: FSMContext):
-    await message.answer(text="Чем Доставлять?", reply_markup=gen_shipping_keyboard())
+    await message.answer(text=texts.ASK_SHIPPING, reply_markup=gen_shipping_keyboard())
 
 
 @dp.callback_query_handler(shipping_callback.filter(), state=OrderStates.Shipping)
 async def shipping_method(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     await state.update_data(shipping=callback_data.get("name"))
-    await bot.send_message(call.message.chat.id, text='Как удобно оплатить?', reply_markup=gen_payment_keyboard())
+    await bot.send_message(call.message.chat.id, text=texts.ASK_PAYMENT, reply_markup=gen_payment_keyboard())
     await OrderStates.Payment.set()
     await call.answer()
 
 
 @dp.message_handler(state=OrderStates.Payment)
 async def delegate_to_payment_method(message: types.Message, state: FSMContext):
-    await message.answer(text='Как удобно оплатить?', reply_markup=gen_payment_keyboard())
+    await message.answer(text=texts.ASK_PAYMENT, reply_markup=gen_payment_keyboard())
 
 
 @dp.callback_query_handler(payment_callback.filter(), state=OrderStates.Payment)
 async def payment_method(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     await state.update_data(payment=callback_data.get("name"))
-    answer = "Почти готово! Поделитесь с нами вашим номером телефона, " \
-             "чтобы мы могли связаться с вами. Или напишите его ниже в формате +998**9999999"
+    answer = texts.ASK_PHONE
     await bot.send_message(call.message.chat.id, text=answer)
     await OrderStates.Phone_Number.set()
     await call.answer()
@@ -109,8 +109,9 @@ async def is_correct(chat_id: str, **kwargs):
         address = state_data["user_address"]
         phone_number = state_data['phone_number']
         cart_list = await create_cart_list(state)
-        answer = "Всё верно?\n\n" + f"{cart_list}\n<b>Адрес доставки</b>: <i>{address}</i>\n" \
-                                    f"<b>Контакт</b>: <i>{phone_number}</i>"
+        answer = (f"{texts.ORDER_CHECK}\n\n{cart_list}\n"
+                  f"<b>Manzil</b>: <i>{address}</i>\n"
+                  f"<b>Telefon</b>: <i>{phone_number}</i>")
     await bot.send_message(chat_id=chat_id, text=answer, reply_markup=gen_check_keyboard())
     await state.reset_state(with_data=False)
 
@@ -126,7 +127,7 @@ async def make_order(call: types.CallbackQuery, state: FSMContext):
         await call.answer()
         return
     order_number = state_data.get("order_number")
-    answer = f"Спасибо, номер заказа {order_number}! Наш менеджер свяжется с вами для уточнения всех деталей."
+    answer = texts.ORDER_ACCEPTED.format(number=order_number)
     await bot.send_message(chat_id=chat_id, text=answer)
     await order_notify(state)
     await wipe_state_data(state, products=True)
@@ -137,7 +138,7 @@ async def make_order(call: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(text="cancel_order")
 async def cancel_order(call: types.CallbackQuery, state: FSMContext):
     await wipe_state_data(state)
-    await bot.send_message(call.message.chat.id, text='Мы перебросили вас в главное меню, но ваша корзина на месте',
+    await bot.send_message(call.message.chat.id, text=texts.MAIN_MENU,
                            reply_markup=menu)
     await bot.delete_message(call.message.chat.id, call.message.message_id)
     await call.answer()

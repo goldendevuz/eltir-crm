@@ -11,24 +11,25 @@ from bot.keyboards.inline.category_kb import category_keyboard, subcategory_keyb
 from bot.keyboards.inline.gen_keyboard import cart_edit_kb
 from bot.loader import dp, bot
 from bot.utils.cart_product_utils import create_cart_list
+from bot.data import texts
 
 
 @dp.message_handler(Command("menu"))
 async def show_menu(message: types.Message):
-    await message.reply(text="Главное Меню:", reply_markup=menu)
+    await message.reply(text=texts.MAIN_MENU, reply_markup=menu)
 
 
-@dp.message_handler(text="🛍 Товары")
+@dp.message_handler(text=texts.BTN_PRODUCTS)
 async def delegate_to_categories(message: types.Message, state: FSMContext):
     print("Hello world")
     await show_category(message, state=state)
 
 
-@dp.message_handler(text="🛒 Корзина")
+@dp.message_handler(text=texts.BTN_CART)
 async def show_cart_menu(message: types.Message, state: FSMContext):
     async with state.proxy() as state_data:
         if not state_data.get("products"):
-            await message.answer("Корзина Пуста")
+            await message.answer(texts.CART_EMPTY)
             return
         if state_data.get("shipping"):
             del state_data["shipping"]
@@ -45,11 +46,11 @@ async def show_category(message: Union[types.Message, types.CallbackQuery], **kw
         quantity = len(state_data['liked_products'])
         markup = await category_keyboard(has_liked_products=True, liked_products_quantity=quantity)
     if isinstance(message, types.Message):
-        await message.answer("Смотри, что у нас есть", reply_markup=markup)
+        await message.answer(texts.CATALOG_INTRO, reply_markup=markup)
     elif isinstance(message, types.CallbackQuery):
         call = message
         if call.inline_message_id:
-            await bot.edit_message_text(text="Смотри что у нас есть", inline_message_id=call.inline_message_id)
+            await bot.edit_message_text(text=texts.CATALOG_INTRO, inline_message_id=call.inline_message_id)
             await bot.edit_message_reply_markup(inline_message_id=call.inline_message_id, reply_markup=markup)
         else:
             await call.message.edit_reply_markup(markup)
@@ -59,7 +60,7 @@ async def show_subcategory(call: CallbackQuery, category_id, **kwargs):
     logging.info(f"callback_id={category_id}")
     markup = await subcategory_keyboard(int(category_id))
     if call.inline_message_id:
-        await bot.edit_message_text(text="Наши Товары", inline_message_id=call.inline_message_id)
+        await bot.edit_message_text(text=texts.SUBCATEGORY_INTRO, inline_message_id=call.inline_message_id)
         await bot.edit_message_reply_markup(inline_message_id=call.inline_message_id, reply_markup=markup)
     else:
         await call.message.edit_reply_markup(reply_markup=markup)

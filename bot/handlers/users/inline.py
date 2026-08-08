@@ -6,7 +6,7 @@ from bot.filters import IsSubcategoryName
 from bot.utils.db_api.quick_commands import show_products_inline, get_liked_product
 
 
-@dp.inline_handler(IsSubcategoryName(), regexp="^.{4,}")
+@dp.inline_handler(IsSubcategoryName())
 async def inline_products(query: types.InlineQuery, state: FSMContext):
     if query.offset:
         offset = int(query.offset)
@@ -18,7 +18,7 @@ async def inline_products(query: types.InlineQuery, state: FSMContext):
     await query.answer(results=query_answer, cache_time=0, next_offset=str(next_offset))
 
 
-@dp.inline_handler(text="💘 Избранное")
+@dp.inline_handler(text="💘 Saralanganlar")
 async def liked_list(query: types.InlineQuery, state: FSMContext):
     state_data = await state.get_data()
     liked_products_id = state_data['liked_products']

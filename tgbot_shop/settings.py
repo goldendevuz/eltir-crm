@@ -22,18 +22,33 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'e!tc$+z+shxb(s6ll55oqb(79v%vfhm2lp1ue2nil+hq9*7mbc'
+# Both come from the environment so production never inherits a value that is
+# public in this repo. The fallbacks keep `docker compose up` working out of
+# the box for local work; set SECRET_KEY and DEBUG=0 in .env before deploying.
+SECRET_KEY = (
+    env.str("SECRET_KEY", "") or "dev-insecure-key-change-me-before-deploy"
+)
+DEBUG = (env.str("DEBUG", "") or "1") == "1"
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+# Compose forwards unset .env keys as empty strings, so `or` rather than a
+# getenv default.
+ALLOWED_HOSTS = [
+    h.strip() for h in
+    (env.str("ALLOWED_HOSTS", "") or "*").split(",") if h.strip()
+]
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in env.str("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if o.strip()
+]
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    # Unfold must precede django.contrib.admin — it overrides admin templates.
+    'unfold',
+    'unfold.contrib.filters',
+    'unfold.contrib.forms',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -45,6 +60,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # WhiteNoise serves collected static files without a separate web server.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -116,13 +133,11 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'uz'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Tashkent'
 
 USE_I18N = True
-
-USE_L10N = True
 
 USE_TZ = True
 
@@ -131,3 +146,104 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
+
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
+# HTTPS-only hardening. Gated on an env flag rather than `not DEBUG` because
+# the panel is also run over plain HTTP on the LAN; switching these on without
+# TLS in front would redirect-loop and drop the session cookie. Set
+# SECURE_SSL=1 in .env once the domain is behind HTTPS.
+if (env.str("SECURE_SSL", "") or "0") == "1":
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    # Nginx/Traefik terminate TLS, so Django must trust the forwarded scheme.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+LOGIN_REDIRECT_URL = '/admin/'
+LOGOUT_REDIRECT_URL = '/admin/login/'
+
+
+# --------------------------------------------------------------- admin panel
+# django-unfold. Sidebar is ordered by how the shop actually runs: the day
+# starts on orders, catalogue edits are occasional, people/settings are rare.
+# Palette is taken from the Azizon packaging red so the panel matches the
+# products it sells.
+UNFOLD = {
+    "SITE_TITLE": "Azizon Qo'qon",
+    "SITE_HEADER": "Azizon Qo'qon",
+    "SITE_SUBHEADER": "Rasmiy diler · Qo'qon shahri",
+    "SITE_URL": None,
+    "DASHBOARD_CALLBACK": "tgbot.dashboard.dashboard_callback",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "COLORS": {
+        "primary": {
+            "50": "254 242 241",
+            "100": "254 226 223",
+            "200": "252 201 196",
+            "300": "249 162 154",
+            "400": "243 111 100",
+            "500": "232 68 55",
+            "600": "211 44 31",
+            "700": "177 33 23",
+            "800": "146 31 23",
+            "900": "122 31 25",
+            "950": "66 12 9",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Savdo",
+                "separator": False,
+                "items": [
+                    {"title": "Boshqaruv paneli", "icon": "dashboard",
+                     "link": "/admin/"},
+                    {"title": "Buyurtmalar", "icon": "receipt_long",
+                     "link": "/admin/tgbot/orders/"},
+                    {"title": "Mijozlar", "icon": "group",
+                     "link": "/admin/tgbot/tguser/"},
+                ],
+            },
+            {
+                "title": "Katalog",
+                "separator": True,
+                "items": [
+                    {"title": "Mahsulotlar", "icon": "inventory_2",
+                     "link": "/admin/tgbot/product/"},
+                    {"title": "Kategoriyalar", "icon": "category",
+                     "link": "/admin/tgbot/category/"},
+                    {"title": "Subkategoriyalar", "icon": "sell",
+                     "link": "/admin/tgbot/subcategory/"},
+                ],
+            },
+            {
+                "title": "Sozlamalar",
+                "separator": True,
+                "items": [
+                    {"title": "Xodimlar", "icon": "badge",
+                     "link": "/admin/auth/user/"},
+                    {"title": "Rollar", "icon": "shield_person",
+                     "link": "/admin/auth/group/"},
+                ],
+            },
+        ],
+    },
+}

@@ -131,5 +131,16 @@ dmypy.json
 .env
 /products/
 
-/data/
+# Katalogning xom manbalari (29MB PDF + render qilingan sahifalar) repoga
+# kerak emas, lekin product_photos/ — seed_catalog uchun zarur asset, shuning
+# uchun u istisno qilinadi. Aks holda yangi klonda mahsulotlar rasmsiz qoladi.
+/data/*
+!/data/product_photos/
 /postgres/
+
+# Tasodifiy artefakt
+db.txt
+
+# Django-managed uploads (seed manbasi: data/product_photos/)
+/media/
+/staticfiles/

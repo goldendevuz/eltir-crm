@@ -9,8 +9,8 @@ async def category_keyboard(liked_products_quantity: int = None, has_liked_produ
     categories_qs = await get_parent_child()
     categories_markup = InlineKeyboardMarkup(row_width=1)
     if has_liked_products:
-        categories_markup.insert(InlineKeyboardButton(text="💘 Избранное " + "(" + str(liked_products_quantity) + ")",
-                                                      switch_inline_query_current_chat="💘 Избранное"))
+        categories_markup.insert(InlineKeyboardButton(text="💘 Saralanganlar " + "(" + str(liked_products_quantity) + ")",
+                                                      switch_inline_query_current_chat="💘 Saralanganlar"))
     for category in categories_qs:
         callback_data = navigate_callback(level=current_level + 1, category_id=category.id)
         categories_markup.insert(InlineKeyboardButton(text=f"{category.tg_name}", callback_data=callback_data))
@@ -26,6 +26,6 @@ async def subcategory_keyboard(category_id: int):  # accepting category_id and g
                                                          switch_inline_query_current_chat=subcategory.tg_name))
 
     subcategories_markup.row(
-        InlineKeyboardButton(text="◀ Назад",
+        InlineKeyboardButton(text="◀ Orqaga",
                              callback_data=navigate_callback(level=current_level - 1)))
     return subcategories_markup

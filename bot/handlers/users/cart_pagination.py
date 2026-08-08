@@ -9,6 +9,7 @@ from bot.loader import dp, bot
 from bot.states.cart_states import PaginationStates
 from bot.utils.cart_product_utils import check_quantity
 from bot.utils.db_api.quick_commands import get_product
+from bot.data import texts
 
 
 def indexed_product_id(page: int, state_data: dict):
@@ -28,11 +29,13 @@ async def paginate_cart_products(call: types.CallbackQuery, callback_data: dict,
         product_id = indexed_product_id(page=page_number, state_data=state_data)
         product = await get_product(product_id=int(product_id))
         cart_product = state_data['products'][str(product_id)]
-        caption = cart_product['title'] + "\n\n" + str(cart_product['quantity']) + " шт. x $" + cart_product['price'] \
-                  + " = $" + cart_product['total']
+        caption = (f"{cart_product['title']}\n\n"
+                   f"{cart_product['quantity']} dona × "
+                   f"{texts.money(cart_product['price'])} = "
+                   f"{texts.money(cart_product['total'])}")
         keyboard = CartKeyboardGen(page=page_number, data=state_data)
         markup = keyboard.build_pagination_keyboard() if edit == "False" else keyboard.build_edit_keyboard()
-        product_image = InputMediaPhoto(product.image, caption=caption)
+        product_image = InputMediaPhoto(product.image_file_id, caption=caption)
     await call.message.edit_media(media=product_image, reply_markup=markup)
     await call.answer()
 
@@ -45,7 +48,7 @@ async def edit_quantity(call: types.CallbackQuery, callback_data: dict, state: F
     await state.update_data(page=page)
     await state.update_data(message_data=call.message.message_id)
     await PaginationStates.QUANTITY_EDIT.set()
-    await call.message.answer(text="Введите количество товара на которую хотите изменить")
+    await call.message.answer(text=texts.ASK_QUANTITY)
 
 
 @dp.message_handler(state=PaginationStates.QUANTITY_EDIT)
@@ -61,15 +64,17 @@ async def accept_quantity(message: types.Message, state: FSMContext):
         cart_product = products_list[str(product_id)]
         products_list[product_id]['quantity'] = quantity
         products_list[product_id]['total'] = product_total_price(state_data)
-        caption = cart_product['title'] + "\n\n" + str(cart_product['quantity']) + " шт. x $" + cart_product['price'] \
-                  + " = $" + cart_product['total']
+        caption = (f"{cart_product['title']}\n\n"
+                   f"{cart_product['quantity']} dona × "
+                   f"{texts.money(cart_product['price'])} = "
+                   f"{texts.money(cart_product['total'])}")
         keyboard = CartKeyboardGen(page=page, data=state_data)
         markup = keyboard.build_edit_keyboard()
         await bot.edit_message_caption(chat_id=message.chat.id, message_id=message_id, caption=caption,
                                        reply_markup=markup)
         del state_data['message_data'], state_data['page']
     await state.reset_state(with_data=False)
-    await message.answer("Успешно")
+    await message.answer("✅ Bajarildi")
 
 
 @dp.callback_query_handler(pagination_edit_callback.filter(reduce="True"))
@@ -84,19 +89,21 @@ async def reduce_quantity(call: types.CallbackQuery, callback_data: dict, state:
             page = 1
             if not state_data['products']:
                 await call.message.delete()
-                await call.message.answer("Корзина Пуста")
+                await call.message.answer(texts.CART_EMPTY)
                 return
             product_id = indexed_product_id(page=page, state_data=state_data)
             product = state_data['products'][product_id]
         state_data['product_id'] = product_id
         product['total'] = product_total_price(state_data)
         product_db = await get_product(product_id=int(product_id))
-        caption = product['title'] + "\n\n" + str(product['quantity']) + " шт. x $" + product['price'] + " = $" + \
-                  product['total']
-        product_image = InputMediaPhoto(product_db.image, caption=caption)
+        caption = (f"{product['title']}\n\n"
+                   f"{product['quantity']} dona × "
+                   f"{texts.money(product['price'])} = "
+                   f"{texts.money(product['total'])}")
+        product_image = InputMediaPhoto(product_db.image_file_id, caption=caption)
         markup = CartKeyboardGen(page=page, data=state_data).build_edit_keyboard()
         await call.message.edit_media(media=product_image, reply_markup=markup)
-        await call.answer("Успешно")
+        await call.answer("✅ Bajarildi")
 
 
 @dp.callback_query_handler(pagination_edit_callback.filter(add="True"))
@@ -109,12 +116,14 @@ async def add_quantity(call: types.CallbackQuery, callback_data: dict, state: FS
         state_data["product_id"] = product_id
         product["total"] = product_total_price(state_data)
         product_db = await get_product(product_id=int(product_id))
-        caption = product['title'] + "\n\n" + str(product['quantity']) + " шт. x $" + product['price'] + " = $" + \
-                  product['total']
-        product_image = InputMediaPhoto(product_db.image, caption=caption)
+        caption = (f"{product['title']}\n\n"
+                   f"{product['quantity']} dona × "
+                   f"{texts.money(product['price'])} = "
+                   f"{texts.money(product['total'])}")
+        product_image = InputMediaPhoto(product_db.image_file_id, caption=caption)
         markup = CartKeyboardGen(page=page, data=state_data).build_edit_keyboard()
         await call.message.edit_media(media=product_image, reply_markup=markup)
-        await call.answer("Успешно")
+        await call.answer("✅ Bajarildi")
 
 
 @dp.callback_query_handler(text="end_edit")

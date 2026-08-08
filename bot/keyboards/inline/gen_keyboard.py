@@ -1,5 +1,6 @@
 from decimal import Decimal
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from bot.data import texts
 from bot.keyboards.inline.callback_datas import gen_buy_callback, liked_product, navigate_callback, gen_edit_callback, \
     gen_pag_edit_call, gen_pagination_callback
 from bot.utils.db_api import quick_commands
@@ -7,11 +8,11 @@ from bot.utils.db_api import quick_commands
 #  =================Cart Edit KB ===================
 cart_edit_kb = InlineKeyboardMarkup(row_width=2, inline_keyboard=[
     [
-        InlineKeyboardButton(text="✏ Редактировать", callback_data="edit_cart"),
-        InlineKeyboardButton(text="❌ Очистить", callback_data="wipe_cart")
+        InlineKeyboardButton(text="✏ Tahrirlash", callback_data="edit_cart"),
+        InlineKeyboardButton(text="❌ Tozalash", callback_data="wipe_cart")
     ],
     [
-        InlineKeyboardButton(text="✅  Оформить заказ", callback_data="order")
+        InlineKeyboardButton(text="✅ Buyurtma berish", callback_data="order")
     ]
 ])
 
@@ -33,12 +34,13 @@ class CartKeyboardGen:
         self.quantity = self.product['quantity']
 
     def produce_edit_button(self):
-        text = "✏ " + str(self.quantity) + " шт. |" + self.product['price'] + " " + self.product['title']
+        text = (f"✏ {self.quantity} dona | "
+                f"{texts.money(self.product['price'])} {self.product['title']}")
         self.keyboard.add(InlineKeyboardButton(text=text, callback_data=gen_pagination_callback(page=self.page,
                                                                                                 edit=True)))
 
     def produce_edit_quantity(self):
-        text = "✏ " + str(self.quantity) + " шт."
+        text = "✏ " + str(self.quantity) + " dona"
         self.keyboard.add((InlineKeyboardButton(text="-1", callback_data=gen_pag_edit_call(product_id=self.product_id,
                                                                                            edit=True, reduce=True,
                                                                                            page=self.page))))
@@ -75,7 +77,7 @@ class CartKeyboardGen:
         self.keyboard.insert(button)
 
     def produce_end_editing(self):
-        self.keyboard.add(InlineKeyboardButton(text="✅ Завершить редактирование", callback_data="end_edit"))
+        self.keyboard.add(InlineKeyboardButton(text="✅ Tahrirlashni yakunlash", callback_data="end_edit"))
 
     def build_pagination_keyboard(self) -> InlineKeyboardMarkup:
         self.produce_edit_button()
@@ -121,19 +123,20 @@ class KeyboardGen:
     def produce_buy_button(self) -> None:
         callback_data = gen_buy_callback(product_id=self.product.id, product_price=str(self.product.price),
                                          category_id=self.product.parent.category_id)
+        price = texts.money(self.product.price)
         if str(self.product.id) not in self.data["products"].keys():
-            product_name = "Купить " + f'"{self.product.title}"' + "  " + str(self.product.price) + "$"
+            product_name = f'Sotib olish "{self.product.title}" · {price}'
         else:
             quantity = self.data["products"][str(self.product.id)]["quantity"]
-            product_name = f"{quantity} шт. | " + "Купить " + f'"{self.product.title}"' + "  " + str(
-                self.product.price) + "$"
+            product_name = (f"{quantity} dona | Sotib olish "
+                            f'"{self.product.title}" · {price}')
         self.keyboard.insert(InlineKeyboardButton(text=product_name, callback_data=callback_data))
 
     def produce_edit_button(self) -> None:
         quantity = self.data["products"][str(self.product.id)]["quantity"]
         self.keyboard.add(InlineKeyboardButton(text="-1", callback_data=gen_edit_callback(product_id=self.product.id,
                                                                                           reduce=True, edit=True)))
-        self.keyboard.insert(InlineKeyboardButton(text="✏" + str(quantity) + "шт.",
+        self.keyboard.insert(InlineKeyboardButton(text="✏" + str(quantity) + " dona",
                                                   callback_data=gen_edit_callback(product_id=self.product.id,
                                                                                   edit=True)))
         self.keyboard.insert(
@@ -150,17 +153,18 @@ class KeyboardGen:
         self.keyboard.add(InlineKeyboardButton(text=text, callback_data=liked_callback))
 
     def produce_cart_button(self) -> None:
+        total = self.cart_total_price(self.data["products"])
         self.keyboard.insert(
-            InlineKeyboardButton(text="🛒 " + str(self.cart_total_price(self.data["products"])) + "$",
+            InlineKeyboardButton(text="🛒 " + texts.money(total),
                                  callback_data="show_cart"))
 
     def produce_again_button(self) -> None:
-        again_text = self.product.parent.tg_name if not self.is_liked else "💘 Избранное"
-        self.keyboard.insert(InlineKeyboardButton(text="Еще " + again_text,
+        again_text = self.product.parent.tg_name if not self.is_liked else "💘 Saralanganlar"
+        self.keyboard.insert(InlineKeyboardButton(text="Yana " + again_text,
                                                   switch_inline_query_current_chat=again_text))
 
     def produce_back_button(self) -> None:
-        self.keyboard.add(InlineKeyboardButton(text="◀ Назад",
+        self.keyboard.add(InlineKeyboardButton(text="◀ Orqaga",
                                                callback_data=navigate_callback(level=1,
                                                                                category_id=self.product.parent.category_id)))
 

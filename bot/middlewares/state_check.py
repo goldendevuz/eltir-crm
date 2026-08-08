@@ -1,6 +1,6 @@
 from aiogram import Dispatcher
 from aiogram.dispatcher.middlewares import BaseMiddleware
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineQuery
 
 from bot.keyboards.inline.callback_datas import parse_callback
 from bot.utils.db_api.quick_commands import get_product
@@ -33,6 +33,16 @@ class CheckState(BaseMiddleware):
         user_id = query.from_user.id
         chat_id = callback_data["chat"]["id"] if callback_data.get("chat") else callback_data['from']['id']
         await self.check_state_data(user_id, chat_id)
+
+    async def on_pre_process_inline_query(self, query: InlineQuery, data: dict):
+        """
+        Inline queries have no `chat`, so the FSM state is keyed by user_id for both
+        chat and user (same as aiogram's own storage lookup for inline updates).
+        Without this hook, show_products_inline() hits state_data['products'] before
+        it's ever been initialized, and the inline handler crashes silently.
+        """
+        user_id = query.from_user.id
+        await self.check_state_data(user_id, user_id)
 
 
 class ProductInfo(BaseMiddleware):

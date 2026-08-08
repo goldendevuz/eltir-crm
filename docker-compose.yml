@@ -1,10 +1,8 @@
-version: "3.9"
-
 services:
   db:
     container_name: PostgresDb
-    image: postgres
-    restart: always
+    image: postgres:15-alpine
+    restart: unless-stopped
     volumes:
       - ./postgres/db:/var/lib/postgresql/data
     environment:
@@ -23,7 +21,7 @@ services:
 
   redis:
     container_name: Redis
-    image: redis
+    image: redis:alpine
     networks:
       - botnet
 
@@ -31,12 +29,12 @@ services:
     container_name: BotAndDjango
     build: .
     command: bash -c "python manage.py runserver 0.0.0.0:8000 | python start_bot.py"
-    restart: always
+    restart: unless-stopped
     volumes:
       - .:/app
     env_file: ".env"
     ports:
-      - "8000:8000"
+      - "8090:8000"
     depends_on:
       db:
         condition: service_healthy

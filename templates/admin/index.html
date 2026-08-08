@@ -1,0 +1,193 @@
+{% extends 'admin/base.html' %}
+{% load i18n %}
+
+{# Unfold ships a pre-built Tailwind bundle, so only the utility classes it
+   already uses are available — invented ones (e.g. bg-base-900) silently do
+   nothing and leave cards white in dark mode. Stick to its vocabulary:
+   gray-* for surfaces/borders, text-font-*-light/dark for type. #}
+{% block breadcrumbs %}{% endblock %}
+
+{% block title %}Boshqaruv paneli | {{ site_title }}{% endblock %}
+
+{% block branding %}
+    <h1 id="site-name">
+        <a href="{% url 'admin:index' %}">{{ site_header }}</a>
+    </h1>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-8">
+
+    {# ---------------------------------------------------------- KPI cards #}
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {% for card in cards %}
+            <div class="bg-white border border-gray-200 rounded-md shadow-sm p-5
+                        dark:bg-gray-900 dark:border-gray-800">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-font-subtle-light text-xs font-medium uppercase
+                                  tracking-wide dark:text-font-subtle-dark">
+                            {{ card.title }}
+                        </p>
+                        <p class="text-font-important-light text-2xl font-semibold mt-2
+                                  truncate dark:text-font-important-dark">
+                            {{ card.metric }}
+                        </p>
+                        {% if card.footer %}
+                            <p class="text-font-subtle-light text-xs mt-1
+                                      dark:text-font-subtle-dark">{{ card.footer }}</p>
+                        {% endif %}
+                    </div>
+                    {% if card.icon %}
+                        <span class="material-symbols-outlined text-primary-600
+                                     shrink-0 dark:text-primary-500">{{ card.icon }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if not is_courier %}
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+        {# ------------------------------------------------- 7-day order chart #}
+        <div class="bg-white border border-gray-200 rounded-md shadow-sm p-5
+                    lg:col-span-2 dark:bg-gray-900 dark:border-gray-800">
+            <h2 class="text-font-important-light font-semibold mb-4
+                       dark:text-font-important-dark">So'nggi 7 kun buyurtmalari</h2>
+            {% if chart_points %}
+                <div class="flex items-end gap-2" style="height: 10rem;">
+                    {% for point in chart_points %}
+                        <div class="flex flex-col flex-1 gap-1 h-full justify-end
+                                    items-center">
+                            <span class="text-font-important-light text-xs font-medium
+                                         dark:text-font-important-dark">{{ point.value }}</span>
+                            <div class="bg-primary-600 rounded-t w-full
+                                        dark:bg-primary-500"
+                                 style="height: {{ point.height }}%; min-height: 2px;"
+                                 title="{{ point.label }}: {{ point.value }}"></div>
+                            <span class="text-font-subtle-light text-xs
+                                         dark:text-font-subtle-dark">{{ point.label }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-font-subtle-light text-sm dark:text-font-subtle-dark">
+                    Hozircha buyurtma yo'q.</p>
+            {% endif %}
+        </div>
+
+        {# ------------------------------------------------------ status split #}
+        <div class="bg-white border border-gray-200 rounded-md shadow-sm p-5
+                    dark:bg-gray-900 dark:border-gray-800">
+            <h2 class="text-font-important-light font-semibold mb-4
+                       dark:text-font-important-dark">Buyurtma holatlari</h2>
+            {% if status_rows %}
+                <ul class="flex flex-col gap-3">
+                    {% for row in status_rows %}
+                        <li class="flex items-center justify-between gap-3">
+                            <span class="text-font-default-light text-sm
+                                         dark:text-font-default-dark">{{ row.label }}</span>
+                            <span class="text-font-important-light font-semibold text-sm
+                                         dark:text-font-important-dark">{{ row.count }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-font-subtle-light text-sm dark:text-font-subtle-dark">
+                    Ma'lumot yo'q.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+
+        {# ------------------------------------------------------ top products #}
+        <div class="bg-white border border-gray-200 rounded-md shadow-sm p-5
+                    dark:bg-gray-900 dark:border-gray-800">
+            <h2 class="text-font-important-light font-semibold mb-4
+                       dark:text-font-important-dark">Eng ko'p sotilgan mahsulotlar</h2>
+            {% if top_products %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-font-subtle-light text-xs uppercase
+                                       dark:text-font-subtle-dark">
+                                <th class="text-left font-medium pb-2">Mahsulot</th>
+                                <th class="text-right font-medium pb-2">Soni</th>
+                                <th class="text-right font-medium pb-2">Summa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for p in top_products %}
+                            <tr class="border-t border-gray-200 dark:border-gray-800">
+                                <td class="py-2 text-font-default-light
+                                           dark:text-font-default-dark">{{ p.title }}</td>
+                                <td class="py-2 text-right text-font-important-light
+                                           dark:text-font-important-dark">{{ p.qty }}</td>
+                                <td class="py-2 text-right whitespace-nowrap
+                                           text-font-default-light
+                                           dark:text-font-default-dark">{{ p.total }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-font-subtle-light text-sm dark:text-font-subtle-dark">
+                    Hali sotuv bo'lmagan.</p>
+            {% endif %}
+        </div>
+
+        {# ----------------------------------------------------- recent orders #}
+        <div class="bg-white border border-gray-200 rounded-md shadow-sm p-5
+                    dark:bg-gray-900 dark:border-gray-800">
+            <h2 class="text-font-important-light font-semibold mb-4
+                       dark:text-font-important-dark">So'nggi buyurtmalar</h2>
+            {% if recent_orders %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-font-subtle-light text-xs uppercase
+                                       dark:text-font-subtle-dark">
+                                <th class="text-left font-medium pb-2">Raqam</th>
+                                <th class="text-left font-medium pb-2">Mijoz</th>
+                                <th class="text-right font-medium pb-2">Summa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for o in recent_orders %}
+                            <tr class="border-t border-gray-200 dark:border-gray-800">
+                                <td class="py-2">
+                                    <a href="{% url 'admin:tgbot_orders_change' o.pk %}"
+                                       class="text-primary-600 hover:underline
+                                              dark:text-primary-500">{{ o.order_number }}</a>
+                                </td>
+                                <td class="py-2 text-font-default-light
+                                           dark:text-font-default-dark">{{ o.tg_user }}</td>
+                                <td class="py-2 text-right whitespace-nowrap
+                                           text-font-default-light
+                                           dark:text-font-default-dark">
+                                    {{ o.total_price|floatformat:0 }} so'm</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-font-subtle-light text-sm dark:text-font-subtle-dark">
+                    Hali buyurtma yo'q.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# --------------------------------------------------- standard app list #}
+    <div class="flex flex-col lg:flex-row lg:gap-8">
+        <div class="flex-grow">
+            {% include "unfold/helpers/app_list_default.html" %}
+        </div>
+        {% include "unfold/helpers/history.html" %}
+    </div>
+</div>
+{% endblock %}

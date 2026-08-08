@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from bot.utils.cart_product_utils import create_cart_list, check_quantity, wipe_state_data
 from bot.utils.db_api.quick_commands import get_product
+from bot.data import texts
 
 
 # async def update_product_info(product_id: int, state: FSMContext):
@@ -55,7 +56,7 @@ async def add_to_cart(call: types.CallbackQuery, callback_data: dict, state: FSM
 @dp.callback_query_handler(edit_quantity.filter(edit="True", add="False", reduce="False"))
 async def edit_product_quantity(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     product_id = callback_data.get("product_id")
-    await bot.send_message(chat_id=call.from_user.id, text="Введите количество товара на которую хотите изменить")
+    await bot.send_message(chat_id=call.from_user.id, text=texts.ASK_QUANTITY)
     await state.update_data(message_data=dict(call))
     await state.update_data(product_id=product_id)
     await ProductStates.QUANTITY_EDIT.set()
@@ -77,7 +78,7 @@ async def accept_product_quantity(message: types.Message, state: FSMContext):
         await bot.edit_message_reply_markup(inline_message_id=inline_message_id, reply_markup=markup)
         del state_data['message_data']
     pprint(await state.get_data())
-    await message.answer("Успешно")
+    await message.answer("✅ Bajarildi")
     await state.reset_state(with_data=False)
 
 
@@ -91,7 +92,7 @@ async def plus_quantity(call: types.CallbackQuery, callback_data: dict, state: F
         products_list[product_id]['total'] = product_total_price(state_data)
         keyboard = await KeyboardGen.from_product_id(product_id=int(product_id), data=state_data)
         markup = keyboard.build_edit_kb()
-        await call.answer(text="Добавлено в корзину")
+        await call.answer(text="Savatga qo'shildi")
         await bot.edit_message_reply_markup(inline_message_id=call["inline_message_id"], reply_markup=markup)
 
 
@@ -110,7 +111,7 @@ async def minus_quantity(call: types.CallbackQuery, callback_data: dict, state: 
             await bot.edit_message_reply_markup(inline_message_id=call["inline_message_id"], reply_markup=markup)
             return
         products_list[product_id]['quantity'] -= 1
-        await call.answer(text="Удалено из корзины")
+        await call.answer(text="Savatdan olib tashlandi")
         products_list[product_id]['total'] = product_total_price(state_data)
         markup = keyboard.build_edit_kb()
         await bot.edit_message_reply_markup(inline_message_id=call["inline_message_id"], reply_markup=markup)
@@ -123,12 +124,12 @@ async def add_liked(call: types.CallbackQuery, callback_data: dict, state: FSMCo
     async with state.proxy() as state_data:
         if callback_data.get("delete") == "False":
             state_data["liked_products"].append(product_id)
-            await call.answer("Добавлено в избранное")
+            await call.answer("Saralanganlarga qo'shildi")
         elif callback_data.get("add") == "False":
             for count, value in enumerate(state_data['liked_products']):
                 if value == product_id:
                     del state_data["liked_products"][count]
-            await call.answer("Удалено из избранных")
+            await call.answer("Saralanganlardan olib tashlandi")
         keyboard = await KeyboardGen.from_product_id(product_id=product_id, data=state_data)
         markup = keyboard.build_product_kb()
     await bot.edit_message_reply_markup(inline_message_id=call["inline_message_id"], reply_markup=markup)
@@ -139,7 +140,7 @@ async def add_liked(call: types.CallbackQuery, callback_data: dict, state: FSMCo
 async def show_cart(call: types.CallbackQuery, state: FSMContext):
     async with state.proxy() as state_data:
         if not state_data.get("products"):
-            await call.answer("Корзина Пуста")
+            await call.answer(texts.CART_EMPTY)
             return
     answer = await create_cart_list(state)
     await call.answer()
@@ -149,7 +150,7 @@ async def show_cart(call: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(text="wipe_cart")
 async def wipe_cart(call: types.CallbackQuery, state: FSMContext):
     await wipe_state_data(state, products=True)
-    await bot.edit_message_text(text="Корзина очищено", chat_id=call.from_user.id,
+    await bot.edit_message_text(text=texts.CART_CLEARED, chat_id=call.from_user.id,
                                 message_id=call.message.message_id)
     await call.answer()
 
@@ -162,8 +163,11 @@ async def edit_cart(call: types.CallbackQuery, state: FSMContext):
         cart_product = state_data['products'][str(product_id)]
         keyboard = CartKeyboardGen(data=state_data)
         markup = keyboard.build_pagination_keyboard()
-        caption = cart_product['title'] + "\n\n" + str(cart_product['quantity']) + " шт. x $" + cart_product['price'] \
-                  + " = $" + cart_product['total']
-    await call.message.answer_photo(photo=product.image, caption=caption, reply_markup=markup)
+        caption = (f"{cart_product['title']}\n\n"
+                   f"{cart_product['quantity']} dona × "
+                   f"{texts.money(cart_product['price'])} = "
+                   f"{texts.money(cart_product['total'])}")
+    await call.message.answer_photo(photo=product.image_file_id, caption=caption,
+                                    reply_markup=markup)
     await bot.delete_message(chat_id=call.from_user.id, message_id=call.message.message_id)
     await call.answer()
