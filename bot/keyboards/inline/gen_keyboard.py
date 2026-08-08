@@ -2,7 +2,7 @@ from decimal import Decimal
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.data import texts
 from bot.keyboards.inline.callback_datas import gen_buy_callback, liked_product, navigate_callback, gen_edit_callback, \
-    gen_pag_edit_call, gen_pagination_callback
+    gen_pag_edit_call, gen_pagination_callback, browse_callback, liked_browse_callback
 from bot.utils.db_api import quick_commands
 
 #  =================Cart Edit KB ===================
@@ -97,17 +97,23 @@ class CartKeyboardGen:
 
 
 class KeyboardGen:
-    def __init__(self, product, data: dict):
+    def __init__(self, product, data: dict, index: int = 0, total: int = 1,
+                 liked_mode: bool = False):
         self.keyboard = InlineKeyboardMarkup(row_width=3)
         self.product = product
         self.data = data
         self.is_liked = self.data["product_info"]["is_liked"]
+        # Varaqlash uchun: mahsulot ro'yxatdagi o'rni va umumiy soni.
+        self.index = index
+        self.total = total
+        self.liked_mode = liked_mode
 
     @classmethod
-    async def from_product_id(cls, product_id: int, data: dict):
+    async def from_product_id(cls, product_id: int, data: dict, index: int = 0,
+                              total: int = 1, liked_mode: bool = False):
         product = await quick_commands.get_product(product_id)
-        instance = cls(product=product, data=data)
-        return instance
+        return cls(product=product, data=data, index=index, total=total,
+                   liked_mode=liked_mode)
 
     @staticmethod
     def cart_total_price(product_list: dict):
@@ -158,28 +164,53 @@ class KeyboardGen:
             InlineKeyboardButton(text="🛒 " + texts.money(total),
                                  callback_data="show_cart"))
 
-    def produce_again_button(self) -> None:
-        again_text = self.product.parent.tg_name if not self.is_liked else "💘 Saralanganlar"
-        self.keyboard.insert(InlineKeyboardButton(text="Yana " + again_text,
-                                                  switch_inline_query_current_chat=again_text))
-
     def produce_back_button(self) -> None:
         self.keyboard.add(InlineKeyboardButton(text="◀ Orqaga",
                                                callback_data=navigate_callback(level=1,
                                                                                category_id=self.product.parent.category_id)))
 
+    def produce_pagination(self, index: int, total: int) -> None:
+        """◀ 3/18 ▶ qatori. Ro'yxat halqa bo'lib aylanadi."""
+        if total <= 1:
+            return
+        prev_index = (index - 1) % total
+        next_index = (index + 1) % total
+        if self.liked_mode:
+            back = liked_browse_callback.new(index=prev_index)
+            forward = liked_browse_callback.new(index=next_index)
+        else:
+            sub_id = self.product.parent.id
+            back = browse_callback.new(subcategory_id=sub_id, index=prev_index)
+            forward = browse_callback.new(subcategory_id=sub_id, index=next_index)
+        self.keyboard.add(InlineKeyboardButton(text="◀", callback_data=back))
+        self.keyboard.insert(InlineKeyboardButton(text=f"{index + 1}/{total}",
+                                                  callback_data="noop"))
+        self.keyboard.insert(InlineKeyboardButton(text="▶", callback_data=forward))
+
     def build_product_kb(self) -> InlineKeyboardMarkup:
         self.produce_buy_button()
         self.produce_like_button()
         self.produce_cart_button()
+        self.produce_pagination(self.index, self.total)
         self.produce_back_button()
-        self.produce_again_button()
         return self.keyboard
 
     def build_edit_kb(self) -> InlineKeyboardMarkup:
         self.produce_edit_button()
         self.produce_like_button()
         self.produce_cart_button()
+        self.produce_pagination(self.index, self.total)
         self.produce_back_button()
-        self.produce_again_button()
         return self.keyboard
+
+    def build_auto_kb(self) -> InlineKeyboardMarkup:
+        """Savatdagi holatga qarab mos klaviaturani tanlaydi.
+
+        Ilgari ba'zi handlerlar doim build_product_kb() chaqirardi va
+        savatdagi mahsulotning -1/+1 tugmalari "Sotib olish"ga almashib
+        ketardi.
+        """
+        in_cart = str(self.product.id) in self.data.get("products", {})
+        if in_cart and self.data["products"][str(self.product.id)]["quantity"] > 0:
+            return self.build_edit_kb()
+        return self.build_product_kb()

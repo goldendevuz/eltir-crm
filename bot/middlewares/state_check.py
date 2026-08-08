@@ -38,8 +38,8 @@ class CheckState(BaseMiddleware):
         """
         Inline queries have no `chat`, so the FSM state is keyed by user_id for both
         chat and user (same as aiogram's own storage lookup for inline updates).
-        Without this hook, show_products_inline() hits state_data['products'] before
-        it's ever been initialized, and the inline handler crashes silently.
+        Katalog endi oddiy xabarlar orqali ko'rsatiladi, lekin foydalanuvchi
+        botni qo'lda @nom bilan chaqirsa ham holat tayyor bo'lishi kerak.
         """
         user_id = query.from_user.id
         await self.check_state_data(user_id, user_id)

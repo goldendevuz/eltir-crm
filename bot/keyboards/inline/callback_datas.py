@@ -10,6 +10,12 @@ edit_quantity = CallbackData("edit_product", "product_id", "edit", "reduce", "ad
 pagination_callback = CallbackData("pagination", "page", "edit")
 pagination_edit_callback = CallbackData("edit_pagination", "product_id", "edit", "add", "reduce", "page")
 pagination_quantity_callback = CallbackData("pagination_quantity", "page")
+# Katalogni ko'rish. Ilgari subkategoriya tugmasi
+# switch_inline_query_current_chat ishlatardi, ya'ni mahsulotlar inline
+# galereyada ko'rsatilardi — u ba'zi klientlarda yuklanmay qolardi. Endi
+# mahsulot chatga oddiy xabar bo'lib keladi va shu callback bilan varaqlanadi.
+browse_callback = CallbackData("browse", "subcategory_id", "index")
+liked_browse_callback = CallbackData("liked_browse", "index")
 user_address_callback = CallbackData("user_address", "id", "name")
 shipping_callback = CallbackData("shipping", "name")
 payment_callback = CallbackData("payment", "name")

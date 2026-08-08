@@ -108,17 +108,15 @@ ADMIN_NEW_ORDER = (
 )
 
 
-def normalize(text: str) -> str:
-    """Inline so'rov matnini taqqoslash uchun bir ko'rinishga keltiradi.
-
-    switch_inline_query_current_chat matnni foydalanuvchi kiritish maydoniga
-    qo'yadi, turli Telegram klientlari esa oxiriga bo'sh joy qo'shishi yoki
-    registrni saqlamasligi mumkin. Aniq taqqoslashda bunday so'rov filtrdan
-    o'tmaydi, hech bir handler ishlamaydi va bot "javob bermay" qolgandek
-    ko'rinadi. Apostrofning turli shakllari ham birxillashtiriladi.
-    """
-    if not text:
-        return ""
-    for ch in ("‘", "’", "ʼ", "´", "`"):
-        text = text.replace(ch, "'")
-    return " ".join(text.split()).casefold()
+def product_card(product) -> str:
+    """Mahsulot kartochkasi matni: nomi, narxi va katalog ma'lumotlari."""
+    lines = [f"<b>{product.title}</b>", money(product.price)]
+    if getattr(product, "weight", ""):
+        lines.append(f"⚖ {product.weight}")
+    if getattr(product, "diameter", ""):
+        lines.append(f"⌀ {product.diameter}")
+    if getattr(product, "composition", ""):
+        lines.append(f"\n<b>Tarkibi:</b> {product.composition}")
+    if getattr(product, "storage", ""):
+        lines.append(f"<b>Saqlash:</b> {product.storage}")
+    return "\n".join(lines)

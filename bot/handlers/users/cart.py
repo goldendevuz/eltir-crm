@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from bot.utils.cart_product_utils import create_cart_list, check_quantity, wipe_state_data
 from bot.utils.db_api.quick_commands import get_product
+from bot.utils.message_edit import edit_markup
 from bot.data import texts
 
 
@@ -50,7 +51,7 @@ async def add_to_cart(call: types.CallbackQuery, callback_data: dict, state: FSM
         markup = keyboard.build_edit_kb()
     print("=" * 100)
     pprint(await state.get_data())
-    await bot.edit_message_reply_markup(inline_message_id=call.inline_message_id, reply_markup=markup)
+    await edit_markup(call, markup)
 
 
 @dp.callback_query_handler(edit_quantity.filter(edit="True", add="False", reduce="False"))
@@ -69,13 +70,13 @@ async def accept_product_quantity(message: types.Message, state: FSMContext):
     async with state.proxy() as state_data:
         quantity = int(message.text)
         product_id = state_data.get("product_id")
-        inline_message_id = state_data.get("message_data")["inline_message_id"]
+        message_data = state_data.get("message_data")
         products_list = state_data.get("products")
         products_list[product_id]['quantity'] = quantity
         products_list[product_id]['total'] = product_total_price(state_data)
         keyboard = await KeyboardGen.from_product_id(product_id=int(product_id), data=state_data)
         markup = keyboard.build_edit_kb()
-        await bot.edit_message_reply_markup(inline_message_id=inline_message_id, reply_markup=markup)
+        await edit_markup(message_data, markup)
         del state_data['message_data']
     pprint(await state.get_data())
     await message.answer("✅ Bajarildi")
@@ -93,7 +94,7 @@ async def plus_quantity(call: types.CallbackQuery, callback_data: dict, state: F
         keyboard = await KeyboardGen.from_product_id(product_id=int(product_id), data=state_data)
         markup = keyboard.build_edit_kb()
         await call.answer(text="Savatga qo'shildi")
-        await bot.edit_message_reply_markup(inline_message_id=call["inline_message_id"], reply_markup=markup)
+        await edit_markup(call, markup)
 
 
 @dp.callback_query_handler(edit_quantity.filter(edit="True", reduce="True"))
@@ -108,13 +109,13 @@ async def minus_quantity(call: types.CallbackQuery, callback_data: dict, state: 
             del products_list[product_id]
             del state_data['product_id']
             markup = keyboard.build_product_kb()
-            await bot.edit_message_reply_markup(inline_message_id=call["inline_message_id"], reply_markup=markup)
+            await edit_markup(call, markup)
             return
         products_list[product_id]['quantity'] -= 1
         await call.answer(text="Savatdan olib tashlandi")
         products_list[product_id]['total'] = product_total_price(state_data)
         markup = keyboard.build_edit_kb()
-        await bot.edit_message_reply_markup(inline_message_id=call["inline_message_id"], reply_markup=markup)
+        await edit_markup(call, markup)
     pprint(await state.get_data())
 
 
@@ -131,8 +132,8 @@ async def add_liked(call: types.CallbackQuery, callback_data: dict, state: FSMCo
                     del state_data["liked_products"][count]
             await call.answer("Saralanganlardan olib tashlandi")
         keyboard = await KeyboardGen.from_product_id(product_id=product_id, data=state_data)
-        markup = keyboard.build_product_kb()
-    await bot.edit_message_reply_markup(inline_message_id=call["inline_message_id"], reply_markup=markup)
+        markup = keyboard.build_auto_kb()
+    await edit_markup(call, markup)
     pprint(await state.get_data())
 
 

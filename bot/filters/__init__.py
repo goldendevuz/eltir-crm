@@ -1,6 +1,4 @@
-from bot.loader import dp
-# from .is_admin import AdminFilter
-from .inline_text_filter import IsSubcategoryName
+# Katalog inline rejimdan oddiy xabarlarga ko'chirilgach, IsSubcategoryName
+# filtri kerak bo'lmay qoldi. Fayl maxsus filtrlar qo'shilishi uchun turibdi.
 
-if __name__ == "bot.filters":
-    dp.filters_factory.bind(IsSubcategoryName)
+__all__ = []

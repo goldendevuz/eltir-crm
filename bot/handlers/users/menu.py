@@ -11,6 +11,7 @@ from bot.keyboards.inline.category_kb import category_keyboard, subcategory_keyb
 from bot.keyboards.inline.gen_keyboard import cart_edit_kb
 from bot.loader import dp, bot
 from bot.utils.cart_product_utils import create_cart_list
+from bot.utils.message_edit import edit_text
 from bot.data import texts
 
 
@@ -37,6 +38,26 @@ async def show_cart_menu(message: types.Message, state: FSMContext):
     await message.answer(text=answer, reply_markup=cart_edit_kb)
 
 
+async def show_menu_message(call, text, markup):
+    """Menyu xabarini ko'rsatadi.
+
+    Mahsulot kartochkasi rasmli xabar bo'lgani uchun "Orqaga" bosilganda uni
+    matnli menyuga tahrirlab bo'lmaydi — bunday holda eski xabar o'chirilib,
+    yangisi yuboriladi.
+    """
+    message = call.message
+    if message is not None and not message.photo:
+        await edit_text(call, text, markup)
+        return
+    if message is not None:
+        try:
+            await message.delete()
+        except Exception:
+            pass
+    await bot.send_message(chat_id=call.from_user.id, text=text,
+                           reply_markup=markup)
+
+
 async def show_category(message: Union[types.Message, types.CallbackQuery], **kwargs):
     print("I'm here")
     state_data = await kwargs['state'].get_data()
@@ -49,21 +70,13 @@ async def show_category(message: Union[types.Message, types.CallbackQuery], **kw
         await message.answer(texts.CATALOG_INTRO, reply_markup=markup)
     elif isinstance(message, types.CallbackQuery):
         call = message
-        if call.inline_message_id:
-            await bot.edit_message_text(text=texts.CATALOG_INTRO, inline_message_id=call.inline_message_id)
-            await bot.edit_message_reply_markup(inline_message_id=call.inline_message_id, reply_markup=markup)
-        else:
-            await call.message.edit_reply_markup(markup)
+        await show_menu_message(call, texts.CATALOG_INTRO, markup)
 
 
 async def show_subcategory(call: CallbackQuery, category_id, **kwargs):
     logging.info(f"callback_id={category_id}")
     markup = await subcategory_keyboard(int(category_id))
-    if call.inline_message_id:
-        await bot.edit_message_text(text=texts.SUBCATEGORY_INTRO, inline_message_id=call.inline_message_id)
-        await bot.edit_message_reply_markup(inline_message_id=call.inline_message_id, reply_markup=markup)
-    else:
-        await call.message.edit_reply_markup(reply_markup=markup)
+    await show_menu_message(call, texts.SUBCATEGORY_INTRO, markup)
 
 
 @dp.callback_query_handler(multi_menu.filter())
