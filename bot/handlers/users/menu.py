@@ -10,6 +10,7 @@ from bot.keyboards.inline.callback_datas import multi_menu
 from bot.keyboards.inline.category_kb import category_keyboard, subcategory_keyboard
 from bot.keyboards.inline.gen_keyboard import cart_edit_kb
 from bot.loader import dp, bot
+from bot.utils import cart
 from bot.utils.cart_product_utils import create_cart_list
 from bot.utils.message_edit import edit_text
 from bot.data import texts
@@ -22,14 +23,13 @@ async def show_menu(message: types.Message):
 
 @dp.message_handler(text=texts.BTN_PRODUCTS)
 async def delegate_to_categories(message: types.Message, state: FSMContext):
-    print("Hello world")
     await show_category(message, state=state)
 
 
 @dp.message_handler(text=texts.BTN_CART)
 async def show_cart_menu(message: types.Message, state: FSMContext):
     async with state.proxy() as state_data:
-        if not state_data.get("products"):
+        if cart.is_empty(state_data):
             await message.answer(texts.CART_EMPTY)
             return
         if state_data.get("shipping"):
@@ -59,7 +59,6 @@ async def show_menu_message(call, text, markup):
 
 
 async def show_category(message: Union[types.Message, types.CallbackQuery], **kwargs):
-    print("I'm here")
     state_data = await kwargs['state'].get_data()
     if not state_data['liked_products']:
         markup = await category_keyboard()

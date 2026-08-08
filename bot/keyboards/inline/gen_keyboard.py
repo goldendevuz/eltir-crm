@@ -120,23 +120,20 @@ class KeyboardGen:
 
     @staticmethod
     def cart_total_price(product_list: dict):
-        total = 0
-        for key in product_list.keys():
-            price = product_list[key]["price"]
-            quantity = product_list[key]["quantity"]
-            total += Decimal(price) * quantity
-        if not total:
-            return "0.00"
-        return total
+        """Savat jami summasi. Faqat haqiqiy qatorlar hisobga olinadi."""
+        return sum((Decimal(str(item["price"])) * int(item["quantity"])
+                    for item in product_list.values()
+                    if int(item.get("quantity", 0)) > 0), Decimal("0"))
 
     def produce_buy_button(self) -> None:
         callback_data = gen_buy_callback(product_id=self.product.id, product_price=str(self.product.price),
                                          category_id=self.product.parent.category_id)
         price = texts.money(self.product.price)
-        if str(self.product.id) not in self.data["products"].keys():
+        item = self.data.get("products", {}).get(str(self.product.id))
+        if not item or int(item.get("quantity", 0)) <= 0:
             product_name = f'Sotib olish "{self.product.title}" · {price}'
         else:
-            quantity = self.data["products"][str(self.product.id)]["quantity"]
+            quantity = item["quantity"]
             product_name = (f"{quantity} dona | Sotib olish "
                             f'"{self.product.title}" · {price}')
         self.keyboard.insert(InlineKeyboardButton(text=product_name, callback_data=callback_data))
@@ -162,9 +159,9 @@ class KeyboardGen:
         self.keyboard.add(InlineKeyboardButton(text=text, callback_data=liked_callback))
 
     def produce_cart_button(self) -> None:
-        total = self.cart_total_price(self.data["products"])
+        total = self.cart_total_price(self.data.get("products", {}))
         self.keyboard.insert(
-            InlineKeyboardButton(text="🛒 " + texts.money(total),
+            InlineKeyboardButton(text="🛒 " + texts.amount(total),
                                  callback_data="show_cart"))
 
     def produce_back_button(self) -> None:
@@ -216,7 +213,7 @@ class KeyboardGen:
         savatdagi mahsulotning -1/+1 tugmalari "Sotib olish"ga almashib
         ketardi.
         """
-        in_cart = str(self.product.id) in self.data.get("products", {})
-        if in_cart and self.data["products"][str(self.product.id)]["quantity"] > 0:
+        item = self.data.get("products", {}).get(str(self.product.id))
+        if item and int(item.get("quantity", 0)) > 0:
             return self.build_edit_kb()
         return self.build_product_kb()

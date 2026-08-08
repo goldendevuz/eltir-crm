@@ -9,12 +9,24 @@ from decimal import Decimal
 from bot.data.config import CURRENCY, SHOP_NAME, SHOP_PHONE, SHOP_TAGLINE
 
 
+def amount(value) -> str:
+    """12000 -> "12 000 so'm". Nol ham shunday ko'rsatiladi.
+
+    Jami summalar uchun: savat bo'sh bo'lsa "0 so'm" to'g'ri, "narx
+    kelishiladi" esa mantiqsiz.
+    """
+    return f"{int(Decimal(str(value or 0))):,}".replace(",", " ") + f" {CURRENCY}"
+
+
 def money(value) -> str:
-    """12000 -> "12 000 so'm". Narx kiritilmagan bo'lsa alohida matn."""
-    amount = Decimal(str(value or 0))
-    if amount <= 0:
+    """Mahsulot narxi. Kiritilmagan bo'lsa alohida matn.
+
+    Faqat MAHSULOT narxi uchun — jami summaga amount() ishlatiladi.
+    """
+    value = Decimal(str(value or 0))
+    if value <= 0:
         return "narx kelishiladi"
-    return f"{int(amount):,}".replace(",", " ") + f" {CURRENCY}"
+    return amount(value)
 
 
 # --- tugmalar ---------------------------------------------------------------
@@ -57,6 +69,10 @@ MAIN_MENU = "Asosiy menyu:"
 CATALOG_INTRO = "Mahsulotlarimiz bilan tanishing:"
 SUBCATEGORY_INTRO = "Bo'limni tanlang:"
 CART_EMPTY = "Savat bo'sh"
+ADDED_TO_CART = "✅ Savatga qo'shildi"
+CART_UPDATED = "Miqdor yangilandi"
+REMOVED_FROM_CART = "Savatdan olib tashlandi"
+PRODUCT_GONE = "Bu mahsulot endi mavjud emas."
 CART_TITLE = "🛒 <b>Savat</b>"
 CART_TOTAL = "Jami"
 CART_DELIVERY = "Yetkazib berish"

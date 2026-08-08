@@ -9,10 +9,8 @@ from bot.data import texts
 
 async def get_parent_child():  # get child model with children attribute
     query = SubcategoryGino.outerjoin(CategoryGino).select()
-    parent = await query.gino.load(CategoryGino.distinct(CategoryGino.id).load(children=SubcategoryGino)).all()
-    print(parent)
-    print("ended")
-    return parent
+    return await query.gino.load(
+        CategoryGino.distinct(CategoryGino.id).load(children=SubcategoryGino)).all()
 
 
 async def get_child_parent(category_id: int):

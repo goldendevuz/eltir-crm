@@ -1,52 +1,71 @@
+"""Savatni tahrirlash ekrani: qatorlarni varaqlash va miqdorni o'zgartirish.
+
+Miqdorni o'zgartirish mantiqi bu yerda takrorlanmaydi — hammasi
+bot.utils.cart orqali. Ilgari har bir handler "miqdorni oshir, jamini
+qayta hisobla, 0 bo'lsa o'chir" qadamlarini o'zicha yozgan edi va savat
+ekranidan qo'shishda ombor umuman tekshirilmasdi.
+"""
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InputMediaPhoto
 
-from bot.handlers.users.cart import product_total_price, show_cart
-from bot.keyboards.inline.callback_datas import pagination_callback, pagination_edit_callback
-from bot.keyboards.inline.gen_keyboard import CartKeyboardGen
-from bot.loader import dp, bot
-from bot.states.cart_states import PaginationStates
-from bot.utils.cart_product_utils import check_quantity
-from bot.utils.db_api.quick_commands import get_product
 from bot.data import texts
+from bot.keyboards.inline.callback_datas import (pagination_callback,
+                                                 pagination_edit_callback)
+from bot.keyboards.inline.gen_keyboard import CartKeyboardGen
+from bot.loader import bot, dp
+from bot.states.cart_states import PaginationStates
+from bot.utils import cart
+from bot.utils.cart_product_utils import check_quantity, stock_allows
+from bot.utils.db_api.quick_commands import get_product
+
+
+def line_caption(item: dict) -> str:
+    """Savat qatorining matni — to'rt joyda bir xil ko'rinishi uchun."""
+    return (f"{item['title']}\n\n"
+            f"{item['quantity']} dona × {texts.money(item['price'])} = "
+            f"{texts.amount(item['total'])}")
 
 
 def indexed_product_id(page: int, state_data: dict):
-    indexed_product_ids = dict(enumerate(state_data['products'].keys(), start=1))
-    if len(indexed_product_ids) > 1:
-        product_id = indexed_product_ids[page]
-        return product_id
-    if len(indexed_product_ids) == 1:
-        return indexed_product_ids[1]
+    """Sahifa raqami bo'yicha mahsulot id'si. Faqat haqiqiy qatorlar."""
+    ids = dict(enumerate(cart.lines(state_data).keys(), start=1))
+    if not ids:
+        return None
+    return ids.get(page) or ids[1]
+
+
+async def _render(call, state_data, page: int, edit_mode: bool = True):
+    product_id = indexed_product_id(page, state_data)
+    if product_id is None:
+        return False
+    item = cart.lines(state_data)[product_id]
+    product = await get_product(int(product_id))
+    keyboard = CartKeyboardGen(page=page, data=state_data)
+    markup = (keyboard.build_edit_keyboard() if edit_mode
+              else keyboard.build_pagination_keyboard())
+    media = InputMediaPhoto(product.image_file_id, caption=line_caption(item))
+    await call.message.edit_media(media=media, reply_markup=markup)
+    return True
 
 
 @dp.callback_query_handler(pagination_callback.filter())
-async def paginate_cart_products(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
+async def paginate_cart_products(call: types.CallbackQuery, callback_data: dict,
+                                 state: FSMContext):
     page_number = int(callback_data.get("page"))
     edit = callback_data.get("edit")
     async with state.proxy() as state_data:
-        product_id = indexed_product_id(page=page_number, state_data=state_data)
-        product = await get_product(product_id=int(product_id))
-        cart_product = state_data['products'][str(product_id)]
-        caption = (f"{cart_product['title']}\n\n"
-                   f"{cart_product['quantity']} dona × "
-                   f"{texts.money(cart_product['price'])} = "
-                   f"{texts.money(cart_product['total'])}")
-        keyboard = CartKeyboardGen(page=page_number, data=state_data)
-        markup = keyboard.build_pagination_keyboard() if edit == "False" else keyboard.build_edit_keyboard()
-        product_image = InputMediaPhoto(product.image_file_id, caption=caption)
-    await call.message.edit_media(media=product_image, reply_markup=markup)
+        await _render(call, state_data, page_number, edit_mode=(edit != "False"))
     await call.answer()
 
 
-@dp.callback_query_handler(pagination_edit_callback.filter(edit="True", add="False", reduce="False"))
-async def edit_quantity(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
-    product_id = callback_data.get("product_id")
-    page = int(callback_data.get("page"))
-    await state.update_data(product_id=product_id)
-    await state.update_data(page=page)
-    await state.update_data(message_data=call.message.message_id)
+@dp.callback_query_handler(
+    pagination_edit_callback.filter(edit="True", add="False", reduce="False"))
+async def edit_quantity(call: types.CallbackQuery, callback_data: dict,
+                        state: FSMContext):
+    await state.update_data(product_id=callback_data.get("product_id"),
+                            page=int(callback_data.get("page")),
+                            message_data=call.message.message_id)
     await PaginationStates.QUANTITY_EDIT.set()
     await call.message.answer(text=texts.ASK_QUANTITY)
 
@@ -58,76 +77,63 @@ async def accept_quantity(message: types.Message, state: FSMContext):
     quantity = int(message.text)
     async with state.proxy() as state_data:
         product_id = state_data.get("product_id")
+        allowed, stock = await stock_allows(product_id, quantity)
+        if not allowed:
+            await message.answer(texts.out_of_stock(stock))
+            return
         page = state_data.get("page")
         message_id = state_data.get("message_data")
-        products_list = state_data.get("products")
-        cart_product = products_list[str(product_id)]
-        products_list[product_id]['quantity'] = quantity
-        products_list[product_id]['total'] = product_total_price(state_data)
-        caption = (f"{cart_product['title']}\n\n"
-                   f"{cart_product['quantity']} dona × "
-                   f"{texts.money(cart_product['price'])} = "
-                   f"{texts.money(cart_product['total'])}")
-        keyboard = CartKeyboardGen(page=page, data=state_data)
-        markup = keyboard.build_edit_keyboard()
-        await bot.edit_message_caption(chat_id=message.chat.id, message_id=message_id, caption=caption,
-                                       reply_markup=markup)
-        del state_data['message_data'], state_data['page']
+        cart.set_quantity(state_data, await get_product(int(product_id)),
+                          quantity)
+        item = cart.lines(state_data).get(str(product_id))
+        if item is not None:
+            markup = CartKeyboardGen(page=page, data=state_data).build_edit_keyboard()
+            await bot.edit_message_caption(
+                chat_id=message.chat.id, message_id=message_id,
+                caption=line_caption(item), reply_markup=markup)
+        state_data.pop('message_data', None)
+        state_data.pop('page', None)
     await state.reset_state(with_data=False)
-    await message.answer("✅ Bajarildi")
+    await message.answer(texts.CART_UPDATED)
 
 
 @dp.callback_query_handler(pagination_edit_callback.filter(reduce="True"))
-async def reduce_quantity(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
+async def reduce_quantity(call: types.CallbackQuery, callback_data: dict,
+                          state: FSMContext):
     page = int(callback_data.get("page"))
     product_id = callback_data.get("product_id")
     async with state.proxy() as state_data:
-        product = state_data['products'][product_id]
-        product['quantity'] -= 1
-        if product['quantity'] == 0:
-            del state_data['products'][product_id]
-            page = 1
-            if not state_data['products']:
-                await call.message.delete()
-                await call.message.answer(texts.CART_EMPTY)
-                return
-            product_id = indexed_product_id(page=page, state_data=state_data)
-            product = state_data['products'][product_id]
-        state_data['product_id'] = product_id
-        product['total'] = product_total_price(state_data)
-        product_db = await get_product(product_id=int(product_id))
-        caption = (f"{product['title']}\n\n"
-                   f"{product['quantity']} dona × "
-                   f"{texts.money(product['price'])} = "
-                   f"{texts.money(product['total'])}")
-        product_image = InputMediaPhoto(product_db.image_file_id, caption=caption)
-        markup = CartKeyboardGen(page=page, data=state_data).build_edit_keyboard()
-        await call.message.edit_media(media=product_image, reply_markup=markup)
-        await call.answer("✅ Bajarildi")
+        product = await get_product(int(product_id))
+        left = cart.change_quantity(state_data, product, -1)
+        if cart.is_empty(state_data):
+            await call.message.delete()
+            await call.message.answer(texts.CART_EMPTY)
+            await call.answer()
+            return
+        # Qator o'chgan bo'lsa sahifa raqami eskirdi — boshiga qaytamiz.
+        await _render(call, state_data, 1 if left == 0 else page)
+    await call.answer(texts.REMOVED_FROM_CART if left == 0 else texts.CART_UPDATED)
 
 
 @dp.callback_query_handler(pagination_edit_callback.filter(add="True"))
-async def add_quantity(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
+async def add_quantity(call: types.CallbackQuery, callback_data: dict,
+                       state: FSMContext):
     page = int(callback_data.get("page"))
     product_id = callback_data.get("product_id")
     async with state.proxy() as state_data:
-        product = state_data["products"][product_id]
-        product["quantity"] += 1
-        state_data["product_id"] = product_id
-        product["total"] = product_total_price(state_data)
-        product_db = await get_product(product_id=int(product_id))
-        caption = (f"{product['title']}\n\n"
-                   f"{product['quantity']} dona × "
-                   f"{texts.money(product['price'])} = "
-                   f"{texts.money(product['total'])}")
-        product_image = InputMediaPhoto(product_db.image_file_id, caption=caption)
-        markup = CartKeyboardGen(page=page, data=state_data).build_edit_keyboard()
-        await call.message.edit_media(media=product_image, reply_markup=markup)
-        await call.answer("✅ Bajarildi")
+        wanted = cart.quantity_of(state_data, product_id) + 1
+        allowed, stock = await stock_allows(product_id, wanted)
+        if not allowed:
+            await call.answer(texts.out_of_stock(stock), show_alert=True)
+            return
+        cart.set_quantity(state_data, await get_product(int(product_id)), wanted)
+        await _render(call, state_data, page)
+    await call.answer(texts.ADDED_TO_CART)
 
 
 @dp.callback_query_handler(text="end_edit")
 async def end_editing(call: types.CallbackQuery, state: FSMContext):
-    await bot.delete_message(call.from_user.id, call.message.message_id)
-    await show_cart(call=call, state=state)
-    await call.answer()
+    from bot.handlers.users.cart import show_cart
+
+    await call.message.delete()
+    await show_cart(call, state)

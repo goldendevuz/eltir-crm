@@ -4,6 +4,7 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 
 from bot.data import texts
+from bot.utils import cart
 from bot.data.config import DELIVERY_FEE
 
 
@@ -11,12 +12,11 @@ async def create_cart_list(state: FSMContext) -> str:
     answer_texts = []
     total = Decimal()
     async with state.proxy() as state_data:
-        for product_id in state_data.get("products").keys():
-            product = state_data['products'].get(product_id)
+        for product_id, product in cart.lines(state_data).items():
             answer_texts.append(
                 f"<b>{product['title']}</b>\n"
                 f"{product['quantity']} dona × {texts.money(product['price'])}"
-                f" = {texts.money(product['total'])}\n"
+                f" = {texts.amount(product['total'])}\n"
             )
             total += Decimal(product['total'])
         body = "\n".join(answer_texts)
@@ -32,7 +32,7 @@ async def create_cart_list(state: FSMContext) -> str:
         f"{body}"
         "----------\n\n"
         f"{delivery_text}"
-        f"<b>{texts.CART_TOTAL}</b>: <i>{texts.money(total)}</i>"
+        f"<b>{texts.CART_TOTAL}</b>: <i>{texts.amount(total)}</i>"
     )
 
 
