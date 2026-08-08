@@ -20,6 +20,8 @@ def money(value) -> str:
 # --- tugmalar ---------------------------------------------------------------
 BTN_PRODUCTS = "🛍 Mahsulotlar"
 BTN_CART = "🛒 Savat"
+BTN_SEARCH = "🔎 Qidiruv"
+BTN_MY_ORDERS = "📦 Buyurtmalarim"
 BTN_FAVOURITES = "💘 Saralanganlar"
 BTN_BACK = "◀ Orqaga"
 BTN_EDIT_CART = "✏ Tahrirlash"
@@ -108,15 +110,99 @@ ADMIN_NEW_ORDER = (
 )
 
 
+def unit_label(product) -> str:
+    return "kg" if getattr(product, "unit", "DONA") == "KG" else "dona"
+
+
+def price_line(product) -> str:
+    """Narx qatori. Chegirma bo'lsa eski narx chizilgan holda ko'rsatiladi."""
+    unit = unit_label(product)
+    current = f"{money(product.price)} / {unit}"
+    old = getattr(product, "old_price", 0) or 0
+    if old and old > product.price:
+        return f"{current}   <s>{money(old)}</s>"
+    return current
+
+
+def stock_line(product) -> str:
+    """Ombor holati. Aniq son o'rniga holat — qoldiq savdo siri."""
+    stock = getattr(product, "stock", 0) or 0
+    if not getattr(product, "available", True) or stock <= 0:
+        return "\u274c Hozircha tugagan"
+    if stock <= 20:
+        return f"\u26a0 Oz qoldi: {int(stock)} {unit_label(product)}"
+    return "\u2705 Sotuvda bor"
+
+
 def product_card(product) -> str:
     """Mahsulot kartochkasi matni: nomi, narxi va katalog ma'lumotlari."""
-    lines = [f"<b>{product.title}</b>", money(product.price)]
+    lines = [f"<b>{product.title}</b>", price_line(product),
+             stock_line(product)]
     if getattr(product, "weight", ""):
-        lines.append(f"⚖ {product.weight}")
+        lines.append(f"\u2696 {product.weight}")
     if getattr(product, "diameter", ""):
-        lines.append(f"⌀ {product.diameter}")
+        lines.append(f"\u2300 {product.diameter}")
     if getattr(product, "composition", ""):
         lines.append(f"\n<b>Tarkibi:</b> {product.composition}")
     if getattr(product, "storage", ""):
         lines.append(f"<b>Saqlash:</b> {product.storage}")
     return "\n".join(lines)
+
+
+def out_of_stock(stock: int) -> str:
+    """Savatga qo'shishda ombor yetmaganida chiqadigan ogohlantirish."""
+    if stock <= 0:
+        return "Kechirasiz, bu mahsulot hozircha tugagan."
+    return f"Omborda faqat {stock} ta qoldi."
+
+
+SEARCH_ASK = "Mahsulot nomini yozing (masalan: salyami, sosiska):"
+SEARCH_TOO_SHORT = "Kamida 2 ta harf yozing."
+NOTHING_HERE = "Bu yerda hozircha mahsulot yo'q."
+
+
+def search_empty(query: str) -> str:
+    return (f"\u00ab{query}\u00bb bo'yicha hech narsa topilmadi.\n"
+            "Boshqacha yozib ko'ring yoki katalogdan tanlang.")
+
+
+def search_found(query: str, count: int) -> str:
+    return f"\u00ab{query}\u00bb bo'yicha {count} ta mahsulot topildi:"
+
+
+BTN_REORDER = "🔁 Yana buyurtma qilish"
+NO_ORDERS = "Sizda hali buyurtma yo'q. Katalogdan tanlashni boshlang."
+REORDER_EMPTY = "Bu buyurtmada mahsulot qolmagan."
+
+ORDER_STATUS_LABELS = {
+    "NEW": "🆕 Yangi",
+    "CONFIRMED": "✅ Tasdiqlangan",
+    "PACKING": "📦 Yig'ilmoqda",
+    "ON_WAY": "🚚 Yo'lda",
+    "DELIVERED": "🏁 Yetkazildi",
+    "CANCELLED": "❌ Bekor qilindi",
+}
+
+
+def order_history_card(order, lines) -> str:
+    """Buyurtmalar tarixidagi bitta karta."""
+    status = ORDER_STATUS_LABELS.get(order.status, order.status)
+    when = order.created_at.strftime("%d.%m.%Y %H:%M") if order.created_at else ""
+    out = [f"<b>{order.order_number}</b> · {status}", when]
+    for line in lines:
+        title = line.parent.title if line.parent else "(o'chirilgan mahsulot)"
+        out.append(f"  • {title} × {line.quantity}")
+    out.append(f"<b>Jami:</b> {money(order.total_price)}")
+    if not order.is_paid:
+        out.append("To'lov: kutilmoqda")
+    return "\n".join(x for x in out if x)
+
+
+def reorder_result(added: int, skipped: list) -> str:
+    if not added:
+        return "Afsuski, bu buyurtmadagi mahsulotlar hozir omborda yo'q."
+    text = f"✅ {added} ta mahsulot savatga qo'shildi."
+    if skipped:
+        text += "\n\nOmborda yetmagani uchun qo'shilmadi:\n" + \
+                "\n".join(f"  • {t}" for t in skipped)
+    return text

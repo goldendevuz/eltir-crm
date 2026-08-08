@@ -72,3 +72,20 @@ async def wipe_state_data(state: FSMContext, products: bool = False):
         for field in field_list:
             if field in state_data.keys():
                 del state_data[field]
+
+
+async def stock_allows(product_id, wanted: int):
+    """Omborda `wanted` dona/kg bormi.
+
+    (ruxsat, qoldiq) qaytaradi. Mahsulot o'chirilgan bo'lsa (0, 0) — savatda
+    eskirgan qator qolib ketishi mumkin, bu holda uni oshirib bo'lmaydi.
+    Enatega storefront'ida ham savat eskirgan qatordan yiqilmaydi, shunchaki
+    uni tashlab yuboradi.
+    """
+    from bot.utils.db_api.quick_commands import get_product
+
+    product = await get_product(int(product_id))
+    if product is None or not product.available:
+        return False, 0
+    stock = int(product.stock or 0)
+    return wanted <= stock, stock

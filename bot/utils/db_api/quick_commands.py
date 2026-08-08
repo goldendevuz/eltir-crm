@@ -1,5 +1,9 @@
+from sqlalchemy import func, or_
+
 from bot.utils.db_api.db_gino import db
-from bot.utils.db_api.schemas.db_tables import SubcategoryGino, CategoryGino, ProductGino, TgUserGino, OrdersGino
+from bot.utils.db_api.schemas.db_tables import (CategoryGino, OrderProductGino,
+                                                OrdersGino, ProductGino,
+                                                SubcategoryGino, TgUserGino)
 from bot.data import texts
 
 
@@ -45,6 +49,55 @@ async def get_liked_products(liked_products_id: list):
             if product is not None:
                 products.append(product)
     return products
+
+
+async def search_products(query: str, limit: int = 30):
+    """Nom va tarkib bo'yicha qidiruv (Enatega storefront'idagi kabi).
+
+    Sotuvda bo'lmagan mahsulotlar chiqmaydi — mijozga taklif qilib bo'lmasa
+    ro'yxatni to'ldirishning ma'nosi yo'q.
+    """
+    pattern = f"%{query.strip()}%"
+    async with db.transaction():
+        db_query = (ProductGino.load(parent=SubcategoryGino)
+                    .where(ProductGino.available.is_(True))
+                    .where(or_(ProductGino.title.ilike(pattern),
+                               ProductGino.composition.ilike(pattern),
+                               ProductGino.kind.ilike(pattern)))
+                    .order_by(ProductGino.position, ProductGino.id)
+                    .limit(limit))
+        return await db_query.gino.all()
+
+
+async def get_user_orders(tg_user_id: int, limit: int = 10):
+    """Mijozning oxirgi buyurtmalari."""
+    async with db.transaction():
+        db_query = (OrdersGino.query
+                    .where(OrdersGino.tg_user_id == tg_user_id)
+                    .order_by(OrdersGino.created_at.desc())
+                    .limit(limit))
+        return await db_query.gino.all()
+
+
+async def get_order_lines(order_id: int):
+    """Buyurtmadagi qatorlar — qayta buyurtma uchun ham ishlatiladi."""
+    async with db.transaction():
+        db_query = (OrderProductGino.load(parent=ProductGino)
+                    .where(OrderProductGino.order_id == order_id))
+        return await db_query.gino.all()
+
+
+async def reduce_stock(product_id: int, quantity: int):
+    """Buyurtma berilganda ombordan ayiradi.
+
+    GREATEST bilan: bir vaqtda kelgan ikki buyurtma qoldiqni manfiyga
+    tushirib yubormasligi kerak.
+    """
+    async with db.transaction():
+        await (ProductGino.update
+               .values(stock=func.greatest(ProductGino.stock - quantity, 0))
+               .where(ProductGino.id == product_id)
+               .gino.status())
 
 
 async def get_user(user_id: int):

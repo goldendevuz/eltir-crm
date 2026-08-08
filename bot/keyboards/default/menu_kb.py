@@ -8,6 +8,10 @@ menu = ReplyKeyboardMarkup(
             KeyboardButton(text=texts.BTN_PRODUCTS),
             KeyboardButton(text=texts.BTN_CART),
         ],
+        [
+            KeyboardButton(text=texts.BTN_SEARCH),
+            KeyboardButton(text=texts.BTN_MY_ORDERS),
+        ],
     ],
     resize_keyboard=True,
     selective=True)

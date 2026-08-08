@@ -2,6 +2,8 @@ from .help import dp
 from .start import dp
 from .menu import dp
 from .browse import dp
+from .search import dp
+from .my_orders import dp
 from .cart import dp
 from .cart_pagination import dp
 from .product_order import dp

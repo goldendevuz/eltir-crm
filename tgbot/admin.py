@@ -127,10 +127,12 @@ class SubcategoryAdmin(ReadOnlyForOperatorAdmin):
 class ProductAdmin(ReadOnlyForOperatorAdmin):
     # price is list-editable on purpose: the catalogue was imported without
     # prices, so filling them in is a bulk job done straight from this table.
-    list_display = ("thumb", "title", "subcategory", "price", "weight",
-                    "available", "badges")
+    list_display = ("thumb", "title", "subcategory", "price_display", "price",
+                    "unit", "stock_pill", "stock", "available", "badges")
     list_display_links = ("title",)
-    list_editable = ("price", "available")
+    # price/stock jadvaldan turib tahrirlanadi: katalog narxsiz import
+    # qilingan va qoldiqni har kuni yangilab turish kerak.
+    list_editable = ("price", "stock", "unit", "available")
     list_filter = ("subcategory__category", "subcategory", "brand",
                    "available", "is_new")
     search_fields = ("title", "slug", "composition")
@@ -141,7 +143,10 @@ class ProductAdmin(ReadOnlyForOperatorAdmin):
     fieldsets = (
         ("Asosiy", {
             "fields": ("title", "slug", "subcategory", "brand", "kind",
-                       "price", "available", "is_new", "position"),
+                       "available", "is_new", "position"),
+        }),
+        ("Narx va ombor", {
+            "fields": ("price", "old_price", "unit", "stock"),
         }),
         ("Rasm", {"fields": ("image", "preview", "image_file_id")}),
         ("Katalog ma'lumotlari", {
@@ -169,6 +174,27 @@ class ProductAdmin(ReadOnlyForOperatorAdmin):
             'background:#fff;" />', obj.image.url,
         )
 
+    @admin.display(description="Narxi", ordering="price")
+    def price_display(self, obj):
+        if obj.has_discount:
+            return format_html(
+                '<span style="white-space:nowrap;">{} '
+                '<s style="opacity:.55;">{}</s></span>',
+                f"{int(obj.price):,}".replace(",", " "),
+                f"{int(obj.old_price):,}".replace(",", " "),
+            )
+        return f"{int(obj.price):,}".replace(",", " ")
+
+    @admin.display(description="Ombor", ordering="stock")
+    def stock_pill(self, obj):
+        """Qoldiq holatini rangli ko'rsatadi — tugayotganini darrov ko'rish uchun."""
+        stock = int(obj.stock or 0)
+        if stock <= 0:
+            return _pill("tugagan", ("#991b1b", "#fee2e2"))
+        if stock <= 20:
+            return _pill(f"oz: {stock}", ("#92400e", "#fef3c7"))
+        return _pill(str(stock), ("#166534", "#dcfce7"))
+
     @admin.display(description="Belgilar")
     def badges(self, obj):
         out = [_pill(obj.get_brand_display(), ("#7a1f19", "#fee2e2"))]
@@ -176,6 +202,8 @@ class ProductAdmin(ReadOnlyForOperatorAdmin):
             out.append(_pill("YANGI", ("#166534", "#dcfce7")))
         if obj.price == 0:
             out.append(_pill("narx yo'q", ("#92400e", "#fef3c7")))
+        if obj.has_discount:
+            out.append(_pill("chegirma", ("#1e40af", "#dbeafe")))
         return format_html(" ".join(["{}"] * len(out)), *out)
 
 

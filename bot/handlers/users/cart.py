@@ -1,4 +1,3 @@
-from pprint import pprint
 
 from aiogram import types
 from aiogram.dispatcher import FSMContext
@@ -9,7 +8,8 @@ from bot.loader import dp, bot
 from bot.states.cart_states import ProductStates
 from decimal import Decimal
 
-from bot.utils.cart_product_utils import create_cart_list, check_quantity, wipe_state_data
+from bot.utils.cart_product_utils import (check_quantity, create_cart_list,
+                                          stock_allows, wipe_state_data)
 from bot.utils.db_api.quick_commands import get_product
 from bot.utils.message_edit import edit_markup
 from bot.data import texts
@@ -44,13 +44,16 @@ def product_total_price(state_data: dict):
 async def add_to_cart(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     product_id = callback_data.get("product_id")
     async with state.proxy() as state_data:
+        wanted = state_data["products"][product_id]["quantity"] + 1
+        allowed, stock = await stock_allows(product_id, wanted)
+        if not allowed:
+            await call.answer(texts.out_of_stock(stock), show_alert=True)
+            return
         state_data["product_id"] = product_id
         state_data["products"][product_id]["quantity"] += 1
         state_data["products"][product_id]["total"] = product_total_price(state_data=state_data)
         keyboard = await KeyboardGen.from_product_id(product_id=int(product_id), data=state_data)
         markup = keyboard.build_edit_kb()
-    print("=" * 100)
-    pprint(await state.get_data())
     await edit_markup(call, markup)
 
 
@@ -70,6 +73,10 @@ async def accept_product_quantity(message: types.Message, state: FSMContext):
     async with state.proxy() as state_data:
         quantity = int(message.text)
         product_id = state_data.get("product_id")
+        allowed, stock = await stock_allows(product_id, quantity)
+        if not allowed:
+            await message.answer(texts.out_of_stock(stock))
+            return
         message_data = state_data.get("message_data")
         products_list = state_data.get("products")
         products_list[product_id]['quantity'] = quantity
@@ -78,7 +85,6 @@ async def accept_product_quantity(message: types.Message, state: FSMContext):
         markup = keyboard.build_edit_kb()
         await edit_markup(message_data, markup)
         del state_data['message_data']
-    pprint(await state.get_data())
     await message.answer("✅ Bajarildi")
     await state.reset_state(with_data=False)
 
@@ -87,8 +93,13 @@ async def accept_product_quantity(message: types.Message, state: FSMContext):
 async def plus_quantity(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     product_id = callback_data.get("product_id")
     async with state.proxy() as state_data:
-        state_data['product_id'] = product_id
         products_list = state_data.get("products")
+        allowed, stock = await stock_allows(
+            product_id, products_list[product_id]['quantity'] + 1)
+        if not allowed:
+            await call.answer(texts.out_of_stock(stock), show_alert=True)
+            return
+        state_data['product_id'] = product_id
         products_list[product_id]['quantity'] += 1
         products_list[product_id]['total'] = product_total_price(state_data)
         keyboard = await KeyboardGen.from_product_id(product_id=int(product_id), data=state_data)
@@ -116,7 +127,6 @@ async def minus_quantity(call: types.CallbackQuery, callback_data: dict, state: 
         products_list[product_id]['total'] = product_total_price(state_data)
         markup = keyboard.build_edit_kb()
         await edit_markup(call, markup)
-    pprint(await state.get_data())
 
 
 @dp.callback_query_handler(liked_product.filter())
@@ -134,7 +144,6 @@ async def add_liked(call: types.CallbackQuery, callback_data: dict, state: FSMCo
         keyboard = await KeyboardGen.from_product_id(product_id=product_id, data=state_data)
         markup = keyboard.build_auto_kb()
     await edit_markup(call, markup)
-    pprint(await state.get_data())
 
 
 @dp.callback_query_handler(text='show_cart')

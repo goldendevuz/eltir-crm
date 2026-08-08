@@ -2,7 +2,8 @@ from decimal import Decimal
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.data import texts
 from bot.keyboards.inline.callback_datas import gen_buy_callback, liked_product, navigate_callback, gen_edit_callback, \
-    gen_pag_edit_call, gen_pagination_callback, browse_callback, liked_browse_callback
+    gen_pag_edit_call, gen_pagination_callback, browse_callback, liked_browse_callback, \
+    search_browse_callback
 from bot.utils.db_api import quick_commands
 
 #  =================Cart Edit KB ===================
@@ -98,7 +99,7 @@ class CartKeyboardGen:
 
 class KeyboardGen:
     def __init__(self, product, data: dict, index: int = 0, total: int = 1,
-                 liked_mode: bool = False):
+                 mode: str = "catalog"):
         self.keyboard = InlineKeyboardMarkup(row_width=3)
         self.product = product
         self.data = data
@@ -106,14 +107,16 @@ class KeyboardGen:
         # Varaqlash uchun: mahsulot ro'yxatdagi o'rni va umumiy soni.
         self.index = index
         self.total = total
-        self.liked_mode = liked_mode
+        # "catalog" | "liked" | "search" — varaqlash qaysi ro'yxat bo'ylab
+        # borishini belgilaydi.
+        self.mode = mode
 
     @classmethod
     async def from_product_id(cls, product_id: int, data: dict, index: int = 0,
-                              total: int = 1, liked_mode: bool = False):
+                              total: int = 1, mode: str = "catalog"):
         product = await quick_commands.get_product(product_id)
         return cls(product=product, data=data, index=index, total=total,
-                   liked_mode=liked_mode)
+                   mode=mode)
 
     @staticmethod
     def cart_total_price(product_list: dict):
@@ -175,9 +178,12 @@ class KeyboardGen:
             return
         prev_index = (index - 1) % total
         next_index = (index + 1) % total
-        if self.liked_mode:
+        if self.mode == "liked":
             back = liked_browse_callback.new(index=prev_index)
             forward = liked_browse_callback.new(index=next_index)
+        elif self.mode == "search":
+            back = search_browse_callback.new(index=prev_index)
+            forward = search_browse_callback.new(index=next_index)
         else:
             sub_id = self.product.parent.id
             back = browse_callback.new(subcategory_id=sub_id, index=prev_index)

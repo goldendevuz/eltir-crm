@@ -51,10 +51,23 @@ class Product(models.Model):
         ("AFSONA", "Afsona"),
     ]
 
+    DONA = "DONA"
+    KG = "KG"
+    UNIT_CHOICES = [(DONA, "dona"), (KG, "kg")]
+
     title = models.CharField("Nomi", max_length=150, db_index=True)
     description = models.TextField("Tavsif", blank=True)
     price = models.DecimalField("Narxi (so'm)", max_digits=12, decimal_places=2,
                                 default=0)
+    # Chegirma ko'rsatish uchun: to'ldirilgan va price'dan katta bo'lsa,
+    # mijozga eski narx chizilgan holda ko'rsatiladi.
+    old_price = models.DecimalField("Eski narxi (so'm)", max_digits=12,
+                                    decimal_places=2, default=0,
+                                    help_text="Chegirma bo'lmasa 0 qoldiring")
+    unit = models.CharField("O'lchov birligi", max_length=8,
+                            choices=UNIT_CHOICES, default=DONA)
+    stock = models.DecimalField("Ombordagi miqdor", max_digits=10,
+                                decimal_places=2, default=0)
     available = models.BooleanField("Sotuvda", default=True)
     slug = models.SlugField(max_length=160, db_index=True)
     image = models.ImageField("Rasm", upload_to="products", blank=True)
@@ -82,6 +95,19 @@ class Product(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def has_discount(self):
+        return self.old_price > 0 and self.old_price > self.price
+
+    @property
+    def in_stock(self):
+        """Sotuvda va omborda qolgan bo'lsa.
+
+        Bot savatga qo'shishdan oldin shuni tekshiradi — aks holda mijoz
+        omborda yo'q mahsulotni buyurtma qilib qo'yadi.
+        """
+        return self.available and self.stock > 0
 
     class Meta:
         verbose_name = "Mahsulot"

@@ -16,6 +16,10 @@ pagination_quantity_callback = CallbackData("pagination_quantity", "page")
 # mahsulot chatga oddiy xabar bo'lib keladi va shu callback bilan varaqlanadi.
 browse_callback = CallbackData("browse", "subcategory_id", "index")
 liked_browse_callback = CallbackData("liked_browse", "index")
+# Qidiruv natijalari FSM holatida saqlanadi (callback_data 64 bayt bilan
+# cheklangan, uzun so'rovni unga sig'dirib bo'lmaydi) — bu yerda faqat o'rni.
+search_browse_callback = CallbackData("search_browse", "index")
+reorder_callback = CallbackData("reorder", "order_id")
 user_address_callback = CallbackData("user_address", "id", "name")
 shipping_callback = CallbackData("shipping", "name")
 payment_callback = CallbackData("payment", "name")

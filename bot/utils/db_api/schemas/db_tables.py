@@ -59,6 +59,9 @@ class ProductGino(BaseModel):
     weight = Column(VARCHAR(40))
     is_new = Column(Boolean)
     position = Column(Integer)
+    old_price = Column(DECIMAL(precision=12, scale=2), default=0)
+    unit = Column(VARCHAR(8), default="DONA")
+    stock = Column(DECIMAL(precision=10, scale=2), default=0)
 
 
 # Django's `default=` is applied in Python by the ORM and leaves no DEFAULT on
