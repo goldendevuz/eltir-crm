@@ -28,7 +28,7 @@ services:
   web:
     container_name: BotAndDjango
     build: .
-    command: bash -c "python manage.py runserver 0.0.0.0:8000 | python start_bot.py"
+    command: ["bash", "/app/docker/entrypoint.sh"]
     restart: unless-stopped
     volumes:
       - .:/app
