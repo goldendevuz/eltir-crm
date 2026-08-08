@@ -36,5 +36,18 @@ python manage.py seed_roles
     done
 ) &
 
-echo "→ Django ishga tushmoqda…"
-exec python manage.py runserver 0.0.0.0:8000
+# DEBUG=1 — lokal ish uchun runserver (avtomatik qayta yuklash bilan).
+# DEBUG=0 — panel Cloudflare tunnel orqali ommaga ochiq, shuning uchun
+# Django'ning development serveri emas, gunicorn ishlatiladi.
+if [ "${DEBUG:-1}" = "1" ]; then
+    echo "→ Django (runserver, DEBUG) ishga tushmoqda…"
+    exec python manage.py runserver 0.0.0.0:8000
+else
+    echo "→ Django (gunicorn) ishga tushmoqda…"
+    exec gunicorn tgbot_shop.wsgi:application \
+        --bind 0.0.0.0:8000 \
+        --workers "${GUNICORN_WORKERS:-3}" \
+        --timeout 60 \
+        --access-logfile - \
+        --error-logfile -
+fi

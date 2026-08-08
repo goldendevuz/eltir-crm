@@ -1,6 +1,9 @@
 Django==4.2.16
 django-unfold==0.40.0
 whitenoise==6.7.0
+# Panel Cloudflare tunnel orqali ommaga ochilgani uchun prodda runserver
+# emas, haqiqiy WSGI server ishlatiladi.
+gunicorn==23.0.0
 aiogram==2.25.1
 psycopg2-binary==2.9.9
 aioredis<2.0

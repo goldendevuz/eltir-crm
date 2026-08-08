@@ -82,5 +82,8 @@ class Command(BaseCommand):
                 results.append((pk, file_id))
                 self.stdout.write(f"  {slug} -> {file_id[:24]}…")
         finally:
-            await bot.session.close()
+            # `bot.session` eskirgan: sessiya async kontekst ichida
+            # olinishi kerak, aks holda DeprecationWarning chiqadi.
+            session = await bot.get_session()
+            await session.close()
         return results, failed

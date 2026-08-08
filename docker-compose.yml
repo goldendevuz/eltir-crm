@@ -46,6 +46,29 @@ services:
     networks:
       - botnet
 
+  # Panelni panel.univel.uz manzilida ochadi. Tunnel chiquvchi ulanish
+  # o'rnatgani uchun serverda hech qanday port ochish yoki TLS sozlash
+  # kerak emas — 8090 portini internetga chiqarmasa ham bo'ladi.
+  #
+  # Token Cloudflare Zero Trust panelida yaratiladi (Networks → Tunnels),
+  # o'sha yerda public hostname sifatida panel.univel.uz → http://web:8000
+  # ko'rsatiladi. `web` — shu tarmoqdagi konteyner nomi, 8000 — uning ichki
+  # porti (8090 host tomonidagi ko'rinishi, tunnelga kerak emas).
+  #
+  # CLOUDFLARE_TUNNEL_TOKEN .env da bo'lmasa xizmat ishga tushmaydi,
+  # shuning uchun u "tunnel" profiliga qo'yilgan: lokalda oddiy
+  # `docker compose up -d` uni umuman ko'tarmaydi.
+  cloudflared:
+    container_name: Cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web
+    networks:
+      - botnet
+    profiles: ["tunnel"]
+
 networks:
   botnet:
     driver: bridge
