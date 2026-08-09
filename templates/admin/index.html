@@ -102,6 +102,84 @@
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
+        {# ------------------------------------------------------ sotuv kanali #}
+        <div class="bg-white border border-gray-200 rounded-md shadow-sm p-5
+                    dark:bg-gray-900 dark:border-gray-800">
+            <h2 class="text-font-important-light font-semibold mb-4
+                       dark:text-font-important-dark">Sotuv kanali · 7 kun</h2>
+            {% if source_rows %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-font-subtle-light text-xs uppercase
+                                       dark:text-font-subtle-dark">
+                                <th class="text-left font-medium pb-2">Kanal</th>
+                                <th class="text-right font-medium pb-2">Buyurtma</th>
+                                <th class="text-right font-medium pb-2">Summa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in source_rows %}
+                            <tr class="border-t border-gray-200 dark:border-gray-800">
+                                <td class="py-2 text-font-default-light
+                                           dark:text-font-default-dark">{{ row.label }}</td>
+                                <td class="py-2 text-right text-font-important-light
+                                           dark:text-font-important-dark">{{ row.count }}</td>
+                                <td class="py-2 text-right whitespace-nowrap
+                                           text-font-default-light
+                                           dark:text-font-default-dark">{{ row.total }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-font-subtle-light text-sm dark:text-font-subtle-dark">
+                    Bu hafta buyurtma bo'lmagan.</p>
+            {% endif %}
+        </div>
+
+        {# --------------------------------------------------- kuryer hisoboti #}
+        <div class="bg-white border border-gray-200 rounded-md shadow-sm p-5
+                    dark:bg-gray-900 dark:border-gray-800">
+            <h2 class="text-font-important-light font-semibold mb-4
+                       dark:text-font-important-dark">Kuryerlar · 7 kun</h2>
+            {% if courier_rows %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-font-subtle-light text-xs uppercase
+                                       dark:text-font-subtle-dark">
+                                <th class="text-left font-medium pb-2">Kuryer</th>
+                                <th class="text-right font-medium pb-2">Yetkazdi</th>
+                                <th class="text-right font-medium pb-2">Summa</th>
+                                <th class="text-right font-medium pb-2">Yetkazish haqi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in courier_rows %}
+                            <tr class="border-t border-gray-200 dark:border-gray-800">
+                                <td class="py-2 text-font-default-light
+                                           dark:text-font-default-dark">{{ row.name }}</td>
+                                <td class="py-2 text-right text-font-important-light
+                                           dark:text-font-important-dark">{{ row.count }}</td>
+                                <td class="py-2 text-right whitespace-nowrap
+                                           text-font-default-light
+                                           dark:text-font-default-dark">{{ row.total }}</td>
+                                <td class="py-2 text-right whitespace-nowrap
+                                           text-font-default-light
+                                           dark:text-font-default-dark">{{ row.fees }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-font-subtle-light text-sm dark:text-font-subtle-dark">
+                    Bu hafta yetkazilgan buyurtma yo'q.</p>
+            {% endif %}
+        </div>
+
         {# ------------------------------------------------------ top products #}
         <div class="bg-white border border-gray-200 rounded-md shadow-sm p-5
                     dark:bg-gray-900 dark:border-gray-800">
@@ -164,7 +242,7 @@
                                               dark:text-primary-500">{{ o.order_number }}</a>
                                 </td>
                                 <td class="py-2 text-font-default-light
-                                           dark:text-font-default-dark">{{ o.tg_user }}</td>
+                                           dark:text-font-default-dark">{{ o.customer_label }}</td>
                                 <td class="py-2 text-right whitespace-nowrap
                                            text-font-default-light
                                            dark:text-font-default-dark">

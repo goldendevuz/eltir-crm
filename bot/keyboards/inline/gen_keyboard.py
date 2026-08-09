@@ -127,7 +127,7 @@ class KeyboardGen:
 
     def produce_buy_button(self) -> None:
         callback_data = gen_buy_callback(product_id=self.product.id, product_price=str(self.product.price),
-                                         category_id=self.product.parent.category_id)
+                                         category_id=self.product.subcategory.category_id)
         price = texts.money(self.product.price)
         item = self.data.get("products", {}).get(str(self.product.id))
         if not item or int(item.get("quantity", 0)) <= 0:
@@ -167,7 +167,7 @@ class KeyboardGen:
     def produce_back_button(self) -> None:
         self.keyboard.add(InlineKeyboardButton(text="◀ Orqaga",
                                                callback_data=navigate_callback(level=1,
-                                                                               category_id=self.product.parent.category_id)))
+                                                                               category_id=self.product.subcategory.category_id)))
 
     def produce_pagination(self, index: int, total: int) -> None:
         """◀ 3/18 ▶ qatori. Ro'yxat halqa bo'lib aylanadi."""
@@ -182,7 +182,7 @@ class KeyboardGen:
             back = search_browse_callback.new(index=prev_index)
             forward = search_browse_callback.new(index=next_index)
         else:
-            sub_id = self.product.parent.id
+            sub_id = self.product.subcategory_id
             back = browse_callback.new(subcategory_id=sub_id, index=prev_index)
             forward = browse_callback.new(subcategory_id=sub_id, index=next_index)
         self.keyboard.add(InlineKeyboardButton(text="◀", callback_data=back))

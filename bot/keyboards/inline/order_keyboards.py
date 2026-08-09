@@ -5,14 +5,13 @@ from bot.data import texts
 from bot.keyboards.inline.callback_datas import (payment_callback,
                                                  shipping_callback,
                                                  user_address_callback)
-from bot.utils.db_api.schemas.db_tables import UserAddresses
+from bot.utils.db_api.quick_commands import get_user_addresses
 
 
 async def generate_addresses_keyboard(state: FSMContext):
     state_data = await state.get_data()
     user_id = state_data['user_db_id']
-    addresses = await UserAddresses.query.where(
-        UserAddresses.user_id == user_id).gino.all()
+    addresses = await get_user_addresses(user_pk=user_id)
     if not addresses:
         return
     keyboard = InlineKeyboardMarkup()

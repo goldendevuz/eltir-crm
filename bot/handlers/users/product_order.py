@@ -11,8 +11,9 @@ from bot.keyboards.inline.order_keyboards import generate_addresses_keyboard, ge
 from bot.loader import dp, bot
 from bot.states.order_states import OrderStates
 from bot.utils.cart_product_utils import create_cart_list, gen_total_price, wipe_state_data
-from bot.utils.db_api.quick_commands import get_user, reduce_stock
-from bot.utils.db_api.schemas.db_tables import OrdersGino, OrderProductGino, UserAddresses
+from bot.utils.db_api.quick_commands import (add_order_line, create_order,
+                                             get_user, reduce_stock,
+                                             save_user_address)
 from bot.utils.generate_order_number import generate_order_number
 from bot.utils.notify_admins import order_notify
 from bot.data import texts
@@ -23,7 +24,8 @@ async def create_order_db(state: FSMContext):
     user_db_id = state_data.get("user_db_id")
     total_price = gen_total_price(state)
     order_number = generate_order_number()
-    order = await OrdersGino.create(tg_user_id=user_db_id, order_number=order_number, total_price=total_price)
+    order = await create_order(user_pk=user_db_id, order_number=order_number,
+                               total_price=total_price)
     await state.update_data(order_number=order_number)
     await state.update_data(order_id=order.id)
 
@@ -34,9 +36,9 @@ async def ordered_product_list(state: FSMContext):
         for product_id in state_data['products'].keys():
             product = state_data['products'].get(product_id)
             quantity = int(product['quantity'])
-            await OrderProductGino.create(order_id=order_id, product_id=int(product_id),
-                                          quantity=quantity,
-                                          single_price=Decimal(product['price']))
+            await add_order_line(order_id=order_id, product_id=int(product_id),
+                                 quantity=quantity,
+                                 single_price=Decimal(product['price']))
             # Ombordan ayiramiz, aks holda qoldiq hech qachon kamaymaydi va
             # bir xil mahsulot cheksiz marta sotilaveradi.
             await reduce_stock(int(product_id), quantity)
@@ -61,7 +63,7 @@ async def accept_address(message: Union[types.Message, types.CallbackQuery], sta
         address = message.text
         state_data = await state.get_data()
         user_db_id = state_data.get("user_db_id")
-        await UserAddresses.create(user_id=user_db_id, address=address)
+        await save_user_address(user_pk=user_db_id, address=address)
         await state.update_data(user_address=address)
     elif isinstance(message, types.CallbackQuery):
         chat_id = message.from_user.id

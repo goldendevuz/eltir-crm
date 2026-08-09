@@ -135,11 +135,13 @@ class ProductAdmin(ReadOnlyForOperatorAdmin):
     list_editable = ("price", "stock", "unit", "available")
     list_filter = ("subcategory__category", "subcategory", "brand",
                    "available", "is_new")
-    search_fields = ("title", "slug", "composition")
+    search_fields = ("title", "slug", "brand", "model_code", "composition")
     prepopulated_fields = {"slug": ("title",)}
     autocomplete_fields = ("subcategory",)
     readonly_fields = ("preview", "image_file_id")
     list_per_page = 50
+    # Oziq-ovqat va texnika xususiyatlari alohida yig'ilgan: bitta mahsulotga
+    # ikkalasi ham kerak bo'lmaydi, shuning uchun ikkalasi ham yopiq turadi.
     fieldsets = (
         ("Asosiy", {
             "fields": ("title", "slug", "subcategory", "brand", "kind",
@@ -149,7 +151,12 @@ class ProductAdmin(ReadOnlyForOperatorAdmin):
             "fields": ("price", "old_price", "unit", "stock"),
         }),
         ("Rasm", {"fields": ("image", "preview", "image_file_id")}),
-        ("Katalog ma'lumotlari", {
+        ("Mebel va maishiy texnika", {
+            "fields": ("model_code", "dimensions", "material", "power",
+                       "warranty_months", "country"),
+            "classes": ("collapse",),
+        }),
+        ("Oziq-ovqat xususiyatlari", {
             "fields": ("description", "composition", "flavour", "storage",
                        "diameter", "weight"),
             "classes": ("collapse",),
@@ -197,7 +204,9 @@ class ProductAdmin(ReadOnlyForOperatorAdmin):
 
     @admin.display(description="Belgilar")
     def badges(self, obj):
-        out = [_pill(obj.get_brand_display(), ("#7a1f19", "#fee2e2"))]
+        out = []
+        if obj.brand:
+            out.append(_pill(obj.brand, ("#7a1f19", "#fee2e2")))
         if obj.is_new:
             out.append(_pill("YANGI", ("#166534", "#dcfce7")))
         if obj.price == 0:
@@ -236,13 +245,16 @@ class OrderProductInline(TabularInline):
 
 @admin.register(models.Orders)
 class OrdersAdmin(ModelAdmin):
-    list_display = ("order_number", "customer", "status_pill", "total_display",
-                    "paid_pill", "courier", "created_at")
+    list_display = ("order_number", "customer", "source_pill", "status_pill",
+                    "delivery_cell", "total_display", "paid_pill", "courier",
+                    "created_at")
     list_display_links = ("order_number",)
-    list_filter = (("status", ChoicesDropdownFilter), "is_paid",
+    list_filter = (("source", ChoicesDropdownFilter),
+                   ("status", ChoicesDropdownFilter), "is_paid",
+                   ("delivery_type", ChoicesDropdownFilter),
                    ("payment_method", ChoicesDropdownFilter),
                    ("created_at", RangeDateFilter), "courier")
-    search_fields = ("order_number", "phone", "tg_user__name",
+    search_fields = ("order_number", "phone", "customer_name", "tg_user__name",
                      "tg_user__user_id")
     autocomplete_fields = ("tg_user",)
     readonly_fields = ("order_number", "created_at", "updated_at",
@@ -250,15 +262,58 @@ class OrdersAdmin(ModelAdmin):
     inlines = [OrderProductInline]
     date_hierarchy = "created_at"
     list_per_page = 40
-    actions = ("mark_delivered", "mark_paid")
+    actions = ("mark_delivered", "mark_on_way", "mark_paid")
 
     # Couriers get a stripped form: they may only push the delivery status.
-    courier_fields = ("order_number", "status", "phone", "address", "comment",
-                      "total_price", "delivered_at")
+    courier_fields = ("order_number", "status", "phone", "delivery_type",
+                      "address", "scheduled_at", "comment", "total_price",
+                      "delivery_fee", "delivered_at")
 
-    @admin.display(description="Mijoz", ordering="tg_user__name")
+    fieldsets = (
+        ("Buyurtma", {
+            "fields": ("order_number", "source", "status", "operator"),
+        }),
+        ("Mijoz", {
+            "fields": ("tg_user", "customer_name", "phone"),
+            "description": "Do'kon sotuvida Telegram mijozi bo'lmaydi — "
+                           "shunda mijoz ismini yozing.",
+        }),
+        ("Yetkazish", {
+            "fields": ("delivery_type", "address", "courier", "scheduled_at",
+                       "delivery_fee", "delivered_at"),
+        }),
+        ("To'lov", {
+            "fields": ("total_price", "payment_method", "is_paid"),
+        }),
+        ("Qo'shimcha", {
+            "fields": ("comment", "created_at", "updated_at"),
+            "classes": ("collapse",),
+        }),
+    )
+
+    @admin.display(description="Mijoz", ordering="customer_name")
     def customer(self, obj):
-        return obj.tg_user
+        return obj.customer_label
+
+    @admin.display(description="Kanal", ordering="source")
+    def source_pill(self, obj):
+        colors = {
+            models.Orders.TELEGRAM: ("#1e40af", "#dbeafe"),
+            models.Orders.SHOP: ("#166534", "#dcfce7"),
+            models.Orders.PHONE_CALL: ("#92400e", "#fef3c7"),
+        }
+        return _pill(obj.get_source_display(),
+                     colors.get(obj.source, ("#374151", "#f3f4f6")))
+
+    @admin.display(description="Yetkazish")
+    def delivery_cell(self, obj):
+        """Turi + kuryer narxi bitta ustunda — ro'yxatni kengaytirmaslik uchun."""
+        if obj.delivery_type == models.Orders.PICKUP:
+            return _pill("olib ketish", ("#374151", "#f3f4f6"))
+        if obj.delivery_fee:
+            fee = f"{int(obj.delivery_fee):,}".replace(",", " ")
+            return _pill(f"yetkazish · {fee}", ("#5b21b6", "#ede9fe"))
+        return _pill("yetkazish", ("#5b21b6", "#ede9fe"))
 
     @admin.display(description="Holati", ordering="status")
     def status_pill(self, obj):
@@ -288,10 +343,22 @@ class OrdersAdmin(ModelAdmin):
             ro += [f for f in self.courier_fields if f != "status"]
         return tuple(dict.fromkeys(ro))
 
-    def get_fields(self, request, obj=None):
+    def get_fieldsets(self, request, obj=None):
+        # `fieldsets` o'rnatilgani uchun Django get_fields() ni chaqirmaydi —
+        # kuryerning qisqartirilgan formasi shu yerdan berilishi shart.
         if is_courier(request):
-            return self.courier_fields
-        return super().get_fields(request, obj)
+            return ((None, {"fields": self.courier_fields}),)
+        if obj is None:
+            # Yangi buyurtmada raqam hali yo'q, yetkazilgan vaqt ham.
+            return tuple(
+                (name, {**opts, "fields": tuple(
+                    f for f in opts["fields"]
+                    if f not in ("order_number", "delivered_at",
+                                 "created_at", "updated_at")
+                )})
+                for name, opts in self.fieldsets
+            )
+        return super().get_fieldsets(request, obj)
 
     def has_add_permission(self, request):
         return not is_courier(request)
@@ -317,6 +384,12 @@ class OrdersAdmin(ModelAdmin):
         n = queryset.update(status=models.Orders.DELIVERED,
                             delivered_at=timezone.now())
         self.message_user(request, f"{n} ta buyurtma yetkazildi deb belgilandi")
+
+    @admin.action(description="Yo'lda deb belgilash")
+    def mark_on_way(self, request, queryset):
+        n = queryset.exclude(status=models.Orders.DELIVERED).update(
+            status=models.Orders.ON_WAY)
+        self.message_user(request, f"{n} ta buyurtma yo'lda deb belgilandi")
 
     @admin.action(description="To'landi deb belgilash")
     def mark_paid(self, request, queryset):

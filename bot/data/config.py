@@ -13,7 +13,8 @@ Database = env.str("POSTGRES_DB")
 
 db_host = IP
 
-POSTGRES_URI = f"postgresql://{PGUSER}:{PGPASSWORD}@{db_host}/{Database}"
+# Bazaga ulanish endi Django orqali (`tgbot_shop/settings.py` → DATABASES).
+# Ilgari bu yerda Gino uchun alohida POSTGRES_URI qurilardi.
 
 PROVIDER_TOKEN = env.str("PROVIDER_TOKEN")
 

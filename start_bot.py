@@ -1,14 +1,23 @@
-from aiogram import executor
-from bot.loader import dp
-from bot.utils.db_api import db_gino
-from bot.utils.set_bot_commands import set_default_commands
-from bot.utils.notify_admins import on_startup_notify
-from bot import middlewares, filters, handlers
+import os
+
+import django
+
+# Bot ham, admin panel ham bitta Django ilovasi ustida ishlaydi: modellar
+# `tgbot/models.py` da, ma'lumot qatlami esa `bot/utils/db_api/quick_commands.py`
+# da. Modellarni import qiladigan har qanday narsadan OLDIN Django yuklanishi
+# shart, shuning uchun bu blok fayl boshida turadi.
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tgbot_shop.settings")
+django.setup()
+
+from aiogram import executor  # noqa: E402
+
+from bot import filters, handlers, middlewares  # noqa: E402,F401
+from bot.loader import dp  # noqa: E402
+from bot.utils.notify_admins import on_startup_notify  # noqa: E402
+from bot.utils.set_bot_commands import set_default_commands  # noqa: E402
 
 
 async def on_startup(dispatcher):
-    # Уведомляет про запуск
-    await db_gino.on_startup(dp)
     await on_startup_notify(dispatcher)
     await set_default_commands(dispatcher)
 
