@@ -61,7 +61,7 @@ async def reorder(call: types.CallbackQuery, callback_data: dict,
     async with state.proxy() as state_data:
         state_data.setdefault("products", {})
         for line in lines:
-            product = line.parent
+            product = line.product
             if product is None:
                 continue
             allowed, _ = await stock_allows(product.id, line.quantity)

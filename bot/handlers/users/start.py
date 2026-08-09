@@ -9,7 +9,7 @@ from bot.data import texts
 from bot.keyboards.default.menu_kb import menu
 from bot.loader import bot, dp
 from bot.states.user_registration_states import RegistrationStates
-from bot.utils.db_api.schemas.db_tables import TgUserGino
+from bot.utils.db_api.quick_commands import create_user
 
 PHONE_NUMBER_PATTERN = r"[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}"
 
@@ -38,7 +38,7 @@ async def reset_my_state(message: types.Message, state: FSMContext):
 async def register_user(message: types.Message, state: FSMContext):
     user_id = int(message.from_user.id)
     try:
-        await TgUserGino.create(
+        await create_user(
             user_id=user_id,
             name=message.from_user.full_name or "",
             username=message.from_user.username or "",

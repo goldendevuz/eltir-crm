@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import IntegrityError, models, transaction
+from django.utils import timezone
 
 
 class TimeModel(models.Model):
@@ -46,11 +47,6 @@ class Subcategory(models.Model):
 
 
 class Product(models.Model):
-    BRAND_CHOICES = [
-        ("AZIZON", "Azizon"),
-        ("AFSONA", "Afsona"),
-    ]
-
     DONA = "DONA"
     KG = "KG"
     UNIT_CHOICES = [(DONA, "dona"), (KG, "kg")]
@@ -80,18 +76,35 @@ class Product(models.Model):
         related_name="products", on_delete=models.PROTECT,
     )
 
-    # --- catalogue attributes, straight from the Azizon 2025 PDF ---
-    brand = models.CharField("Brend", max_length=16, choices=BRAND_CHOICES,
-                             default="AZIZON")
+    # Diler bir nechta ishlab chiqaruvchi bilan ishlaydi (mebel, maishiy
+    # texnika, oziq-ovqat), shuning uchun brend ro'yxati qattiq yozilmaydi.
+    brand = models.CharField("Brend", max_length=64, blank=True, default="")
     kind = models.CharField("Turi", max_length=120, blank=True,
                             help_text="masalan: yarim dudlangan kolbasa")
+    is_new = models.BooleanField("Yangi mahsulot", default=False)
+    position = models.PositiveIntegerField("Tartib", default=0)
+
+    # --- oziq-ovqat xususiyatlari ---
     composition = models.TextField("Tarkibi", blank=True)
     flavour = models.TextField("Ta'm yo'nalishi", blank=True)
     storage = models.TextField("Saqlash sharoiti", blank=True)
     diameter = models.CharField("Diametri", max_length=40, blank=True)
     weight = models.CharField("Og'irligi", max_length=40, blank=True)
-    is_new = models.BooleanField("Yangi mahsulot", default=False)
-    position = models.PositiveIntegerField("Tartib", default=0)
+
+    # --- mebel va maishiy texnika xususiyatlari ---
+    model_code = models.CharField("Model raqami", max_length=64, blank=True,
+                                  default="")
+    dimensions = models.CharField("O'lchami", max_length=80, blank=True,
+                                  default="",
+                                  help_text="masalan: 200x90x75 sm")
+    material = models.CharField("Material", max_length=120, blank=True,
+                                default="",
+                                help_text="masalan: MDF, teri, metall")
+    power = models.CharField("Quvvati", max_length=40, blank=True, default="",
+                             help_text="masalan: 1800 Vt")
+    warranty_months = models.PositiveIntegerField("Kafolat (oy)", default=0)
+    country = models.CharField("Ishlab chiqarilgan davlat", max_length=60,
+                               blank=True, default="")
 
     def __str__(self):
         return self.title
@@ -157,9 +170,36 @@ class Orders(TimeModel):
         (TRANSFER, "O'tkazma"),
     ]
 
+    TELEGRAM = "TELEGRAM"
+    SHOP = "SHOP"
+    PHONE_CALL = "PHONE"
+    SOURCE_CHOICES = [
+        (TELEGRAM, "Telegram bot"),
+        (SHOP, "Do'kondan"),
+        (PHONE_CALL, "Telefon orqali"),
+    ]
+
+    DELIVERY = "DELIVERY"
+    PICKUP = "PICKUP"
+    DELIVERY_CHOICES = [
+        (DELIVERY, "Yetkazib berish"),
+        (PICKUP, "Olib ketish"),
+    ]
+
     is_paid = models.BooleanField("To'langan", default=False)
+    # Do'konga kelgan mijozda Telegram akkaunti bo'lmaydi, shuning uchun
+    # bo'sh qolishi mumkin — o'shanda `customer_name` to'ldiriladi.
     tg_user = models.ForeignKey(TgUser, verbose_name="Mijoz",
-                                related_name="orders", on_delete=models.PROTECT)
+                                related_name="orders", on_delete=models.PROTECT,
+                                null=True, blank=True)
+    customer_name = models.CharField("Mijoz ismi", max_length=120, blank=True,
+                                     default="",
+                                     help_text="Telegramsiz mijoz uchun")
+    # Panelda ochilgan buyurtma odatda do'kon sotuvi, shuning uchun default
+    # SHOP. Bot esa `quick_commands.create_order` da TELEGRAM'ni aniq beradi.
+    source = models.CharField("Sotuv kanali", max_length=16,
+                              choices=SOURCE_CHOICES, default=SHOP,
+                              db_index=True)
     order_number = models.CharField("Buyurtma raqami", max_length=25,
                                     db_index=True, unique=True)
     total_price = models.DecimalField("Jami summa", max_digits=12,
@@ -169,6 +209,13 @@ class Orders(TimeModel):
     payment_method = models.CharField("To'lov turi", max_length=16,
                                       choices=PAYMENT_CHOICES, default=CASH)
     phone = models.CharField("Telefon", max_length=32, blank=True)
+    delivery_type = models.CharField("Yetkazish turi", max_length=16,
+                                     choices=DELIVERY_CHOICES, default=DELIVERY)
+    delivery_fee = models.DecimalField("Yetkazish narxi", max_digits=12,
+                                       decimal_places=2, default=0)
+    scheduled_at = models.DateTimeField("Rejalashtirilgan vaqt", null=True,
+                                        blank=True,
+                                        help_text="Mijoz so'ragan yetkazish vaqti")
     address = models.TextField("Yetkazish manzili", blank=True)
     comment = models.TextField("Izoh", blank=True)
     courier = models.ForeignKey(
@@ -184,6 +231,68 @@ class Orders(TimeModel):
 
     def __str__(self):
         return self.order_number
+
+    @property
+    def customer_label(self):
+        """Telegram mijozi ham, do'kon mijozi ham bir xil ko'rsatiladi."""
+        if self.tg_user_id:
+            return str(self.tg_user)
+        return self.customer_name or "Nomsiz mijoz"
+
+    @property
+    def grand_total(self):
+        """Mahsulotlar jami + yetkazish narxi — kassir oladigan summa."""
+        return self.total_price + self.delivery_fee
+
+    # Panelda ochilgan buyurtmalar shu prefiks bilan raqamlanadi. Bot o'z
+    # hisoblagichini `db.txt` pickle faylida yuritadi va paneldagi qatorlarni
+    # ko'rmaydi, shuning uchun ikkala oqim bir xil formatda raqam bersa
+    # to'qnashadi. Alohida prefiks buni butunlay yo'q qiladi.
+    PANEL_PREFIX = "P"
+
+    @classmethod
+    def generate_order_number(cls):
+        """Shu kunning oxirgi panel raqamidan davom ettiradi."""
+        today = timezone.localtime().strftime("%d-%m-%Y")
+        prefix = f"{cls.PANEL_PREFIX}-{today}-"
+        last = (cls.objects
+                .filter(order_number__startswith=prefix)
+                .order_by("-id")
+                .values_list("order_number", flat=True)
+                .first())
+        seq = 1
+        if last:
+            tail = last.rsplit("-", 1)[-1]
+            if tail.isdigit():
+                seq = int(tail) + 1
+        return f"{prefix}{seq}"
+
+    def save(self, *args, **kwargs):
+        # Ikki operator bir vaqtda saqlasa bir xil raqam chiqishi mumkin;
+        # unique cheklovi ushlaydi, biz keyingi raqam bilan qayta urinamiz.
+        if not self.order_number:
+            for _ in range(5):
+                self.order_number = self.generate_order_number()
+                try:
+                    with transaction.atomic():
+                        return super().save(*args, **kwargs)
+                except IntegrityError:
+                    continue
+        return super().save(*args, **kwargs)
+
+    def clean(self):
+        """Buyurtma kimniki ekani nomamlum qolmasligi kerak.
+
+        Bot doim `tg_user` beradi; panelda ochilgan do'kon sotuvida esa
+        hech bo'lmasa mijoz ismi yozilishi shart.
+        """
+        from django.core.exceptions import ValidationError
+
+        if not self.tg_user_id and not self.customer_name.strip():
+            raise ValidationError({
+                "customer_name": "Telegram mijozi tanlanmagan bo'lsa, "
+                                 "mijoz ismini yozing.",
+            })
 
     def recalc_total(self):
         """Jami summani qatorlardan qayta hisoblaydi.

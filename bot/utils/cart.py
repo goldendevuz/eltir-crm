@@ -49,7 +49,7 @@ def quantity_of(state_data, product_id) -> int:
 def set_quantity(state_data, product, quantity: int):
     """Miqdorni belgilaydi. 0 yoki manfiy bo'lsa qatorni o'chiradi.
 
-    `product` — Gino obyekti; qator mavjud bo'lmasa shundan yaratiladi,
+    `product` — Product modeli obyekti; qator mavjud bo'lmasa shundan yaratiladi,
     shuning uchun oldindan "bo'sh" yozuv qoldirishning hojati yo'q.
     """
     products = _products(state_data)

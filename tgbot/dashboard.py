@@ -65,10 +65,11 @@ def dashboard_callback(request, context):
         active = mine.exclude(status__in=[Orders.DELIVERED, Orders.CANCELLED])
         done_today = mine.filter(status=Orders.DELIVERED,
                                  delivered_at__gte=today)
+        on_way = mine.filter(status=Orders.ON_WAY)
         context.update({
             "cards": [
                 _card("Yetkazishim kerak", active.count(),
-                      "Hozirgi faol buyurtmalar", "local_shipping"),
+                      f"Yo'lda: {on_way.count()} ta", "local_shipping"),
                 _card("Bugun yetkazildi", done_today.count(),
                       today.strftime("%d.%m.%Y"), "task_alt"),
                 _card("Bugungi summa",
@@ -116,6 +117,29 @@ def dashboard_callback(request, context):
               f"{Product.objects.filter(price=0).count()} ta", "inventory_2"),
     ]
 
+    # Do'kon savdosi bot savdosidan alohida ko'rinishi kerak — diler uchun
+    # asosiy oqim aynan offline.
+    shop_today = today_orders.filter(source__in=[Orders.SHOP,
+                                                 Orders.PHONE_CALL])
+    bot_today = today_orders.filter(source=Orders.TELEGRAM)
+    cards.append(
+        _card("Bugun do'kondan", shop_today.count(),
+              f"Botdan: {bot_today.count()} ta", "storefront")
+    )
+
+    # Yetkazishga tayyor, lekin kuryeri yo'q buyurtmalar — operator birinchi
+    # navbatda shularni ko'rishi kerak.
+    to_deliver = orders.filter(
+        delivery_type=Orders.DELIVERY,
+        status__in=[Orders.CONFIRMED, Orders.PACKING, Orders.ON_WAY],
+    )
+    unassigned = to_deliver.filter(courier__isnull=True)
+    cards.append(
+        _card("Yetkazish kutilmoqda", to_deliver.count(),
+              f"Kuryer biriktirilmagan: {unassigned.count()} ta",
+              "local_shipping")
+    )
+
     # Orders per day for the last 7 days, zero-filled so the line has no gaps.
     per_day = {}
     for row in (week_orders
@@ -137,9 +161,34 @@ def dashboard_callback(request, context):
                    .annotate(n=Count("id")).order_by("-n"))
     status_labels = dict(Orders.STATUS_CHOICES)
 
+    source_labels = dict(Orders.SOURCE_CHOICES)
+    source_rows = (week_orders.values("source")
+                   .annotate(n=Count("id"),
+                             total=Sum("total_price")).order_by("-n"))
+
+    # Kuryerlar kesimida haftalik yakun: kim nechta yetkazdi va qancha summa.
+    courier_rows = (week_orders
+                    .filter(status=Orders.DELIVERED, courier__isnull=False)
+                    .values("courier__username", "courier__first_name")
+                    .annotate(n=Count("id"),
+                              total=Sum("total_price"),
+                              fees=Sum("delivery_fee"))
+                    .order_by("-n")[:8])
+
     context.update({
         "cards": cards,
         "chart_points": _bars(days),
+        "source_rows": [
+            {"label": source_labels.get(r["source"], r["source"]),
+             "count": r["n"], "total": _money(r["total"])}
+            for r in source_rows
+        ],
+        "courier_rows": [
+            {"name": r["courier__first_name"] or r["courier__username"],
+             "count": r["n"], "total": _money(r["total"]),
+             "fees": _money(r["fees"])}
+            for r in courier_rows
+        ],
         "top_products": [
             {"title": r["product__title"], "qty": r["qty"],
              "total": _money(r["total"])}

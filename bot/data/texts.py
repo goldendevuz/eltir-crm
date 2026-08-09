@@ -207,7 +207,7 @@ def order_history_card(order, lines) -> str:
     when = order.created_at.strftime("%d.%m.%Y %H:%M") if order.created_at else ""
     out = [f"<b>{order.order_number}</b> · {status}", when]
     for line in lines:
-        title = line.parent.title if line.parent else "(o'chirilgan mahsulot)"
+        title = line.product.title if line.product else "(o'chirilgan mahsulot)"
         out.append(f"  • {title} × {line.quantity}")
     out.append(f"<b>Jami:</b> {money(order.total_price)}")
     if not order.is_paid:

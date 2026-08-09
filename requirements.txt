@@ -10,6 +10,5 @@ aioredis<2.0
 redis>=4.2
 aiohttp>=3.7.4
 environs
-gino
 Pillow==10.4.0
 requests==2.32.3
