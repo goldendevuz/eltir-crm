@@ -6,6 +6,9 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
+# install gettext for translations
+RUN apt-get update \ENV PYTHONUNBUFFERED 1\ENV PYTHONUNBUFFERED 1 apt-get install -y gettext \ENV PYTHONUNBUFFERED 1\ENV PYTHONUNBUFFERED 1 rm -rf /var/lib/apt/lists/*
+
 
 
 # install dependencies
