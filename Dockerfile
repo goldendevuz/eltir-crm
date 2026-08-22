@@ -7,15 +7,12 @@ ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
 # install gettext for translations
-RUN apt-get update \ENV PYTHONUNBUFFERED 1\ENV PYTHONUNBUFFERED 1 apt-get install -y gettext \ENV PYTHONUNBUFFERED 1\ENV PYTHONUNBUFFERED 1 rm -rf /var/lib/apt/lists/*
-
-
+RUN apt-get update && apt-get install -y gettext && rm -rf /var/lib/apt/lists/*
 
 # install dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
-
 
 # copy project
 COPY . /app/
